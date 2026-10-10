@@ -1,0 +1,9 @@
+node_modules
+dist
+qa
+logs
+refs
+assets-src
+blender
+scripts
+sheet.html

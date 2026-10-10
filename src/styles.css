@@ -341,11 +341,22 @@ button {
   cursor: pointer;
   touch-action: manipulation;
 }
-.bar button i {
-  font-style: normal;
-  font-size: 0.72em;
-  margin-right: 0.15em;
-  vertical-align: 0.08em;
+/* every symbol is the same drawing at the same size, with the glow the lettering has */
+.ico {
+  display: inline-block;
+  width: 0.68em;
+  height: 0.68em;
+  vertical-align: -0.02em;
+  fill: currentColor;
+  filter: drop-shadow(0 0 0.16em rgba(150, 255, 190, 0.6)) drop-shadow(0.06em 0.06em 0 rgba(0, 0, 0, 0.7));
+}
+.bar button i,
+.x i,
+.key i {
+  margin-right: 0.38em;
+}
+.osd .ico {
+  margin-left: 0.36em;
 }
 .bar button:hover,
 .bar button[aria-pressed='true'] {
@@ -422,16 +433,11 @@ button {
     inset 0 0 0.9em rgba(150, 255, 190, 0.2);
   animation: breathe 1.9s ease-in-out infinite;
 }
-/* a drawn triangle: the character for one turns into a picture on some phones */
-.play i::before,
-.key-hot i::before {
-  content: '';
-  display: block;
-  width: 36%;
-  aspect-ratio: 0.9;
-  margin-left: 9%;
-  background: currentColor;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+.play i .ico {
+  width: 40%;
+  height: 40%;
+  margin-left: 7%;
+  filter: none;
 }
 /* the word, as a caption */
 .play span {
@@ -675,13 +681,9 @@ dialog.mail::backdrop {
 .key-hot:hover {
   background: #fff3ae;
 }
-.key-hot i {
-  display: block;
-  width: 0.62em;
-}
-.key-hot i::before {
-  width: 100%;
-  margin: 0;
+.key-hot .ico,
+.chip .ico {
+  filter: none;
 }
 .key:active,
 .chip:active {
@@ -714,6 +716,9 @@ dialog.mail::backdrop {
   }
   .x span {
     display: none;
+  }
+  .x i {
+    margin-right: 0;
   }
   .mail footer .key {
     flex: 1;

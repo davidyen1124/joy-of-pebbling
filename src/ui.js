@@ -1,5 +1,7 @@
 // The words the station lays over the picture: captions, the yellow colour names, the title card,
 // the credits, and the tape machine's own read-out in the corners.
+import { icon } from './icons.js'
+
 const $ = (id) => document.getElementById(id)
 
 export class UI {
@@ -77,9 +79,10 @@ export class UI {
     box.hidden = false
   }
 
-  /** dur 0 keeps it up until the next one */
-  osd(text, dur) {
+  /** the machine's read-out: a word and, after it, a symbol. dur 0 keeps it up until the next one */
+  osd(text, dur, symbol) {
     this.el.osdL.textContent = text
+    if (symbol) this.el.osdL.insertAdjacentHTML('beforeend', icon(symbol))
     this.t.osd = dur || Infinity
   }
 

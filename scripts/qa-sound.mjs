@@ -219,7 +219,7 @@ ok(r.peak > -40, 'no music on the title card')
 
 // 6. a first visit, in a browser that will not play sound until it is clicked: from the click to the sound
 {
-  const blocked = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist'] })
+  const blocked = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=document-user-activation-required'] })
   const p2 = await blocked.newPage({ viewport: { width: 1280, height: 800 } })
   p2.on('pageerror', (e) => errors.push(e.message))
   await p2.goto(`${BASE}/`, { waitUntil: 'load' })

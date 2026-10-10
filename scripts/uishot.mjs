@@ -2,7 +2,7 @@
 // sound until it is clicked): node scripts/uishot.mjs <prefix>
 import { chromium } from 'playwright'
 const prefix = process.argv[2] || 'qa/ui'
-const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=document-user-activation-required'] })
 for (const [name, w, h, dpr, touch] of [['desk', 1440, 900, 1, false], ['phone', 390, 844, 2, true], ['land', 844, 390, 2, true]]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch })
   const page = await ctx.newPage()

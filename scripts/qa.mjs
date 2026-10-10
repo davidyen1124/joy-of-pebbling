@@ -42,9 +42,11 @@ const ok = (cond, where, what) => {
 }
 
 // A browser as a first-time visitor has it: it will not let a page be heard until the page is touched.
-const ARGS = ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist']
+// (Said outright: left to itself this browser allows sound on some addresses and not on others.)
+const GL = ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist']
+const ARGS = [...GL, '--autoplay-policy=document-user-activation-required']
 // And one that will (as for a site the viewer listens to often).
-const FREE = [...ARGS, '--autoplay-policy=no-user-gesture-required']
+const FREE = [...GL, '--autoplay-policy=no-user-gesture-required']
 
 async function open(browser, w, h, dpr, touch, query = 'ep=12') {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch && browser.browserType().name() === 'chromium' })
@@ -106,7 +108,7 @@ const measure = () => {
     gl: R(q('#gl')),
     split: j.stage.split, top,
     bar: q('#screen').classList.contains('on') || q('#bar').matches(':focus-within'),
-    keys: [...document.querySelectorAll('.bar-keys button')].map((k) => ({ id: k.id, ...R(k), clipped: k.scrollWidth > k.clientWidth + 1 })),
+    keys: [...document.querySelectorAll('.bar-keys button')].map((k) => ({ id: k.id, ...R(k), clipped: k.scrollWidth > k.clientWidth + 1, icon: R(k.querySelector('svg')), glyph: /[\u2190-\u2BFF]/.test(k.textContent) })),
     play: vis(q('#bPlay')) ? R(q('#bPlay')) : null,
     held: j.show.held,
     clock: j.show.clock,
@@ -169,6 +171,11 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   }
   for (let i = 0; i < m.keys.length; i++) for (let k = i + 1; k < m.keys.length; k++) ok(!overlap(m.keys[i], m.keys[k]), name, `controls ${m.keys[i].id} and ${m.keys[k].id} overlap`)
   ok(new Set(m.keys.map((k) => Math.round(k.y))).size <= 2, name, `the controls take ${new Set(m.keys.map((k) => Math.round(k.y))).size} rows`)
+  // every control has a drawn symbol, all of one size, and none is a character borrowed from a font
+  ok(m.keys.every((k) => k.icon && k.icon.w > 8) && !m.keys.some((k) => k.glyph), name, 'a control has no drawn symbol, or uses a character for one')
+  const iw = m.keys.map((k) => (k.icon ? k.icon.w : 0))
+  const ih = m.keys.map((k) => (k.icon ? k.icon.h : 0))
+  ok(Math.max(...iw) - Math.min(...iw) < 0.5 && Math.max(...ih) - Math.min(...ih) < 0.5, name, `the symbols on the controls are different sizes: ${iw.map((v) => v.toFixed(1)).join(', ')}`)
   ok(!(await page.evaluate(() => /parody|affiliated/i.test(document.body.innerText))), name, 'the small print is back')
   await shot('2-controls')
   // ...and they go away again by themselves

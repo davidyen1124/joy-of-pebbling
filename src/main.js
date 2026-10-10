@@ -6,15 +6,17 @@ import '@fontsource/yellowtail/400.css'
 import './styles.css'
 import { Painter } from './painter.js'
 import { Stage } from './stage.js'
-import { Show, PLAY } from './show.js'
+import { Show } from './show.js'
 import { UI } from './ui.js'
 import { Audio } from './audio.js'
 import { setupMail } from './mail.js'
+import { drawIcons, icon } from './icons.js'
 
 const $ = (id) => document.getElementById(id)
 const q = new URLSearchParams(location.search)
 const small = Math.min(window.innerWidth, window.innerHeight) < 560
 const screen = $('screen')
+drawIcons()
 
 const painter = new Painter(small ? 576 : 768)
 const stage = new Stage($('gl'), painter)
@@ -63,6 +65,7 @@ const store = {
 audio.wanted = store.get('jop-sound') !== 'off' && !q.has('mute')
 const showSound = () => {
   $('bSound').setAttribute('aria-pressed', String(audio.on))
+  $('bSound').firstElementChild.innerHTML = icon(audio.on ? 'sound' : 'mute')
   $('soundText').textContent = audio.on ? ' on' : ' off'
 }
 const setSound = (on) => {
@@ -85,7 +88,7 @@ const begin = () => {
   if (!show.held) return
   hold(false)
   setSound(true)
-  ui.osd(PLAY, 2.5)
+  ui.osd('PLAY', 2.5, 'play')
   show.replay()
 }
 $('bPlay').addEventListener('click', begin)

@@ -40,16 +40,16 @@
         <div class="osd osd-r" id="osdR"></div>
       </div>
 
-      <button class="play" id="bPlay" hidden><i aria-hidden="true"></i><span>Play</span></button>
+      <button class="play" id="bPlay" hidden><i data-icon="play"></i><span>Play</span></button>
 
       <nav class="bar" id="bar" aria-label="Controls">
         <div class="bar-keys">
-          <button id="bPause" aria-pressed="false"><i>&#10074;&#10074;</i> Pause</button>
-          <button id="bSpeed" aria-label="Speed"><i>&#9654;&#xFE0E;&#9654;&#xFE0E;</i> <span class="wide">Speed </span><span id="speedText">1&times;</span></button>
-          <button id="bNext"><i>&#9654;&#xFE0E;&#10074;</i> Next<span class="wide"> Pebble</span></button>
-          <button id="bSound" aria-pressed="false"><i>&#9834;</i> Sound<span class="wide" id="soundText"> off</span></button>
-          <button id="bMail"><i>&#9993;&#xFE0E;</i> Request</button>
-          <button id="bSave"><i>&#8681;</i> Keep<span class="wide"> it</span></button>
+          <button id="bPause" aria-pressed="false"><i data-icon="pause"></i>Pause</button>
+          <button id="bSpeed" aria-label="Speed"><i data-icon="ff"></i><span class="wide">Speed </span><span id="speedText">1&times;</span></button>
+          <button id="bNext"><i data-icon="next"></i>Next<span class="wide"> Pebble</span></button>
+          <button id="bSound" aria-pressed="false"><i data-icon="mute"></i>Sound<span class="wide" id="soundText"> off</span></button>
+          <button id="bMail"><i data-icon="mail"></i>Request</button>
+          <button id="bSave"><i data-icon="keep"></i>Keep<span class="wide"> it</span></button>
         </div>
       </nav>
     </main>
@@ -61,7 +61,7 @@
             <h2 id="mailTitle">Viewer Mail</h2>
             <p>Dear Cobb, please paint me&hellip;</p>
           </div>
-          <button class="x" value="cancel" aria-label="Close">&#10005;<span> Close</span></button>
+          <button class="x" value="cancel" aria-label="Close"><i data-icon="close"></i><span>Close</span></button>
         </header>
         <div class="mail-body">
           <div class="mail-prev"><canvas id="prev" width="300" height="360"></canvas><p><span id="prevText"></span></p></div>
@@ -75,7 +75,7 @@
         </div>
         <footer>
           <button type="button" class="key" id="mailRandom">Surprise me</button>
-          <button type="submit" class="key key-hot" value="send" id="mailSend"><i aria-hidden="true"></i>Paint it</button>
+          <button type="submit" class="key key-hot" value="send" id="mailSend"><i data-icon="play"></i>Paint it</button>
         </footer>
       </form>
     </dialog>

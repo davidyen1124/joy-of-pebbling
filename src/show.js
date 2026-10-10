@@ -15,9 +15,6 @@ import { rng, clamp } from './rng.js'
 const LOAD = 0.85 // seconds at the palette before each part
 const GAP = 0.28 // a breath between lines
 const BEAT_FOR = 1.95 // the brush is beaten for this long: 22 strikes, as measured
-// the triangles as type: without the mark after them some phones draw a picture of a button instead
-export const PLAY = 'PLAY \u25B6\uFE0E'
-const FF = 'FF \u25B6\uFE0E\u25B6\uFE0E'
 
 /** an episode number alone decides everything, unless the viewer wrote in with a request */
 export function makeEpisode(no, req = {}) {
@@ -307,12 +304,12 @@ export class Show {
   setSpeed(x) {
     this.speed = x
     this.audio.setSpeed(x)
-    this.ui.osd(x === 1 ? PLAY : `${FF} x${x}`, x === 1 ? 2.2 : 0)
+    this.ui.osd(x === 1 ? 'PLAY' : `FF x${x}`, x === 1 ? 2.2 : 0, x === 1 ? 'play' : 'ff')
   }
 
   togglePause() {
     this.paused = !this.paused
-    this.ui.osd(this.paused ? 'PAUSE ❚❚' : this.speed === 1 ? PLAY : `${FF} x${this.speed}`, this.paused || this.speed > 1 ? 0 : 2.2)
+    this.ui.osd(this.paused ? 'PAUSE' : this.speed === 1 ? 'PLAY' : `FF x${this.speed}`, this.paused || this.speed > 1 ? 0 : 2.2, this.paused ? 'pause' : this.speed === 1 ? 'play' : 'ff')
     this.audio.setPaused(this.paused)
   }
 

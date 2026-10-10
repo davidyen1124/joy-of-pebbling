@@ -6,7 +6,7 @@ import '@fontsource/yellowtail/400.css'
 import './styles.css'
 import { Painter } from './painter.js'
 import { Stage } from './stage.js'
-import { Show } from './show.js'
+import { Show, PLAY } from './show.js'
 import { UI } from './ui.js'
 import { Audio } from './audio.js'
 import { setupMail } from './mail.js'
@@ -22,23 +22,16 @@ const ui = new UI()
 const audio = new Audio()
 const show = new Show({ stage, painter, ui, audio })
 
-// ── the address remembers which Pebble this is, so it can be sent to a friend ──
+// ── which Pebble. A link may name one (?ep=427, or ?j=pirate&h=beehive…); otherwise the address is
+//    left alone, and it is cleared again as soon as the programme moves on from the one it named. ──
 const KEYS = { k: 'kind', c: 'color', h: 'hair', hc: 'hairColor', j: 'job', bg: 'plate' }
-const readRequest = () => {
-  const req = {}
-  for (const [short, key] of Object.entries(KEYS)) if (q.get(short)) req[key] = q.get(short)
-  return req
-}
-const remember = (no, req = {}) => {
-  const p = new URLSearchParams()
-  p.set('ep', no)
-  for (const [short, key] of Object.entries(KEYS)) if (req[key]) p.set(short, req[key])
-  history.replaceState(null, '', `${location.pathname}?${p}`)
-}
-let request = readRequest()
+const linked = {}
+for (const [short, key] of Object.entries(KEYS)) if (q.get(short)) linked[key] = q.get(short)
 const anyNo = () => 1 + Math.floor(Math.random() * 9998)
 let firstNo = Math.max(0, parseInt(q.get('ep'), 10) || 0) // 0: let the first voiced episode open the programme
-let requestFor = firstNo
+const tidy = () => {
+  if (location.search) history.replaceState(null, '', location.pathname)
+}
 // What comes next. With the sound on it is the next episode Cobb has recorded, round and round;
 // with it off there is nothing to hear, so it is simply another Pebble.
 const nextNo = (no) => {
@@ -48,14 +41,11 @@ const nextNo = (no) => {
 }
 show.nextNo = nextNo
 const play = (no, req = {}) => {
-  request = req
-  requestFor = no
-  remember(no, req)
+  tidy()
   show.skip({ no, ...req })
 }
 
-// ── sound. A browser will not let a page make a noise until it has been touched, so the picture
-//    asks: the first click, tap or key anywhere turns the sound on. ────────────────────────────────
+// ── sound ───────────────────────────────────────────────────────────────────
 const store = {
   get: (k) => {
     try {
@@ -70,31 +60,40 @@ const store = {
     } catch {}
   },
 }
-let wantSound = store.get('jop-sound') !== 'off' && !q.has('mute')
+audio.wanted = store.get('jop-sound') !== 'off' && !q.has('mute')
 const showSound = () => {
   $('bSound').setAttribute('aria-pressed', String(audio.on))
   $('soundText').textContent = audio.on ? ' on' : ' off'
-  $('soundcue').hidden = audio.on || !wantSound
-  screen.classList.toggle('cue', !$('soundcue').hidden)
 }
 const setSound = (on) => {
+  audio.wanted = on
   audio.enable(on)
-  wantSound = on
   store.set('jop-sound', on ? 'on' : 'off')
   if (on && show.speaks) audio.preload(show.beats.flatMap((b) => b.cues).map((c) => c.id))
   showSound()
 }
-$('soundcueText').textContent = matchMedia('(pointer: coarse)').matches ? 'tap for sound' : 'click for sound'
-/** true if this touch was spent on turning the sound on */
-const firstTouch = () => {
-  if (audio.on || !wantSound) return false
-  setSound(true)
-  return true
+
+// ── starting. If the browser will let a page be heard without being touched, the programme simply
+//    starts, with its sound. Most will not, the first time: then it waits on its title card behind a
+//    play button, and the first click, tap or key anywhere starts it from the top, sound and all. ──
+const hold = (on) => {
+  show.held = on
+  screen.classList.toggle('held', on)
+  $('bPlay').hidden = !on
 }
+const begin = () => {
+  if (!show.held) return
+  hold(false)
+  setSound(true)
+  ui.osd(PLAY, 2.5)
+  show.replay()
+}
+$('bPlay').addEventListener('click', begin)
 
 // ── the strip of controls: comes when the mouse moves or the screen is tapped, goes after a moment ──
 let barTimer = 0
 const showBar = (ms = 3200) => {
+  if (show.held) return
   screen.classList.add('on')
   clearTimeout(barTimer)
   barTimer = setTimeout(() => {
@@ -116,7 +115,7 @@ $('bar').addEventListener('click', () => showBar())
 const SPEEDS = [1, 2, 4, 8]
 const setSpeed = (x) => {
   show.setSpeed(x)
-  $('speedText').textContent = `${x}\u00D7`
+  $('speedText').textContent = `${x}×`
 }
 const pause = () => {
   show.togglePause()
@@ -127,10 +126,6 @@ $('bPause').addEventListener('click', pause)
 $('bSpeed').addEventListener('click', () => setSpeed(SPEEDS[(SPEEDS.indexOf(show.speed) + 1) % SPEEDS.length]))
 $('bNext').addEventListener('click', next)
 $('bSound').addEventListener('click', () => setSound(!audio.on))
-$('soundcue').addEventListener('click', (e) => {
-  e.stopPropagation()
-  setSound(true)
-})
 $('bSave').addEventListener('click', () => {
   painter.canvas.toBlob((blob) => {
     if (!blob) return
@@ -146,8 +141,8 @@ $('bMail').addEventListener('click', () => mail.open(show.ep?.spec))
 
 // the picture itself: a mouse click pauses, as on any video; a finger brings the controls up or sends them away
 screen.addEventListener('pointerup', (e) => {
-  if (e.target.closest('.bar, .soundcue, dialog')) return
-  if (firstTouch()) return showBar()
+  if (e.target.closest('.bar, dialog')) return
+  if (show.held) return begin()
   if (e.pointerType === 'mouse') {
     if (e.button === 0) pause()
     showBar()
@@ -157,7 +152,11 @@ screen.addEventListener('pointerup', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (mail.isOpen || e.metaKey || e.ctrlKey || e.altKey) return
-  if (e.key !== 'Tab' && e.key !== 'Shift') firstTouch()
+  if (show.held) {
+    if (['Tab', 'Shift', 'Escape'].includes(e.key)) return
+    e.preventDefault()
+    return begin()
+  }
   if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return
   if (e.key === ' ' || e.key === 'k') pause()
   else if (e.key === 'ArrowRight' || e.key === 'n') next()
@@ -169,13 +168,9 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault()
 })
 
-// when an episode ends by itself the show moves on; keep the address in step
-let lastNo = 0
+// when an episode ends by itself the show moves on; a link's episode is no longer the one on screen
 const follow = () => {
-  if (show.ep && show.ep.no !== lastNo) {
-    lastNo = show.ep.no
-    remember(lastNo, lastNo === requestFor ? request : {})
-  }
+  if (show.ep && firstNo && show.ep.no !== firstNo && location.search) tidy()
 }
 
 // ── go ──────────────────────────────────────────────────────────────────────
@@ -195,16 +190,25 @@ function frame(now) {
 
 async function boot() {
   requestAnimationFrame(frame)
+  show.held = true // nothing moves until it is known whether it can be heard
   const layout = await fetch('/models/layout.json').then((r) => r.json())
   await stage.load('/models/set.glb', layout)
   if (q.get('speed')) setSpeed(Math.max(1, Math.min(8, +q.get('speed') || 1)))
   await audio.ready
-  if (!firstNo) firstNo = requestFor = audio.featured[0] ?? anyNo()
-  await show.play(firstNo, request)
-  remember(firstNo, request)
+  if (!firstNo) firstNo = audio.featured[0] ?? anyNo()
+  let free = false
+  if (audio.wanted) {
+    audio.prepare() // everything is fetched and decoded now, so that a click is answered at once
+    free = await audio.canStart()
+    if (free) setSound(true)
+  }
+  show.held = audio.wanted && !free
+  await show.play(firstNo, linked)
+  hold(show.held)
 }
 boot().catch((err) => {
   console.error(err)
+  hold(false)
   ui.osd('NO SIGNAL', 0)
 })
 
@@ -212,10 +216,12 @@ boot().catch((err) => {
 window.__jop = {
   show, stage, painter, ui, audio, nextNo,
   advance(seconds, step = 1 / 30) {
+    hold(false)
     for (let t = 0; t < seconds; t += step) show.update(step / show.speed)
   },
   /** run until a beat of this kind (and label) begins; returns its index or -1 */
   seek(kind, label, limit = 900) {
+    hold(false)
     const start = show.state.episodes
     for (let t = 0; t < limit; t += 1 / 30) {
       const s = show.state

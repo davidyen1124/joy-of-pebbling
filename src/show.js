@@ -15,6 +15,9 @@ import { rng, clamp } from './rng.js'
 const LOAD = 0.85 // seconds at the palette before each part
 const GAP = 0.28 // a breath between lines
 const BEAT_FOR = 1.95 // the brush is beaten for this long: 22 strikes, as measured
+// the triangles as type: without the mark after them some phones draw a picture of a button instead
+export const PLAY = 'PLAY \u25B6\uFE0E'
+const FF = 'FF \u25B6\uFE0E\u25B6\uFE0E'
 
 /** an episode number alone decides everything, unless the viewer wrote in with a request */
 export function makeEpisode(no, req = {}) {
@@ -70,7 +73,7 @@ export function writeEpisode(ep, seconds = guessSeconds) {
     // He talks about the knife while he is holding the knife.
     const early = b.tool === 'big' ? [lines[0]] : []
     paint(b.what, { plate: 'blur', band: [Math.min(b.y[0] + 0.07, b.y[1] - 0.05), b.y[1]], style: i === 0 ? 'criss' : 'rows', size: 124, dur: early.length ? 2.6 : 2.0, tool: 'big', seed: ep.no + i },
-      early, { paint: b.paints[0], ctx: ctxB, shots: i === 0 ? [[0, 'palette'], [LOAD + 0.2, 'canvas']] : [[0, 'canvas']] })
+      early, { paint: b.paints[0], ctx: ctxB, shots: i === 0 ? [[0, 'palette'], [LOAD, 'canvas']] : [[0, 'canvas']] })
     paint(b.what, { plate: 'sharp', band: b.y, style: b.style, size: b.style === 'knife' ? 150 : b.style === 'criss' ? 104 : b.style === 'dab' ? 76 : 66, dur: 4.2, tool: b.tool, final: last, seed: ep.no + i + 50 },
       early.length ? lines.slice(1) : lines, { paint: b.paints[1] || b.paints[0], ctx: ctxB })
   })
@@ -112,7 +115,7 @@ export function writeEpisode(ep, seconds = guessSeconds) {
     } else lines = [r.pick(S.STEP[st.id] || S.STEP.arms)]
     // a Pebble with no outfit still has to be told what it does for a living
     if (st.id === 'arms' && !built.steps.some((s) => s.id === 'outfit')) lines.push(r.pick(ep.job.say))
-    paint(st.id, job, lines, { paint: paintId, shots: st.id === 'body' ? [[0, 'palette'], [LOAD + 0.15, 'canvas']] : undefined })
+    paint(st.id, job, lines, { paint: paintId, shots: st.id === 'body' ? [[0, 'palette'], [LOAD, 'canvas']] : undefined })
     if (st.id === 'shade' && accident) {
       const blot = [[[fx - 14, ground - 40], [fx + 10, ground - 52], [fx + 16, ground - 30], [fx - 8, ground - 22], [fx + 4, ground - 40], [fx - 12, ground - 34]]]
       const lines2 = r.pick(S.ACCIDENT)
@@ -158,6 +161,8 @@ export class Show {
     this.audio = audio
     this.speed = 1
     this.paused = false
+    this.held = false // waiting on the title card to be started
+    this.req = {}
     this.glitch = 1
     this.ep = null
     this.beats = []
@@ -190,6 +195,7 @@ export class Show {
 
   async play(no, req) {
     const ep = makeEpisode(no, req)
+    this.req = req || {}
     this.loading = no
     this.glitch = 1
     this.audio.hush()
@@ -283,6 +289,11 @@ export class Show {
     }
   }
 
+  /** this episode again, from the top */
+  replay() {
+    return this.play(this.ep.no, this.req)
+  }
+
   /** leave this episode now and start another */
   skip(req) {
     const no = req?.no ?? (this.ep ? this.ep.no + 1 : 1)
@@ -296,19 +307,19 @@ export class Show {
   setSpeed(x) {
     this.speed = x
     this.audio.setSpeed(x)
-    this.ui.osd(x === 1 ? 'PLAY ▶' : `FF ▶▶ x${x}`, x === 1 ? 2.2 : 0)
+    this.ui.osd(x === 1 ? PLAY : `${FF} x${x}`, x === 1 ? 2.2 : 0)
   }
 
   togglePause() {
     this.paused = !this.paused
-    this.ui.osd(this.paused ? 'PAUSE ❚❚' : this.speed === 1 ? 'PLAY ▶' : `FF ▶▶ x${this.speed}`, this.paused || this.speed > 1 ? 0 : 2.2)
+    this.ui.osd(this.paused ? 'PAUSE ❚❚' : this.speed === 1 ? PLAY : `${FF} x${this.speed}`, this.paused || this.speed > 1 ? 0 : 2.2)
     this.audio.setPaused(this.paused)
   }
 
   update(real) {
     const { stage, painter, ui, audio } = this
     this.glitch = Math.max(0, this.glitch - real * (this.ep ? 2.4 : 0))
-    const dt = this.paused ? 0 : real * this.speed
+    const dt = this.paused || this.held ? 0 : real * this.speed
     const b = this.beats[this.bi]
     if (b && this.ep && dt > 0) {
       this.bt += dt

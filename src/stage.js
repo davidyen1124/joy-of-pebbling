@@ -20,6 +20,7 @@ const HOST_POS = V(-0.52, 0, 0.02)
 const FACE_CAMERA = 0.14
 const FACE_CANVAS = 0.66
 const BLUE = 0x5b93d6
+const BUCKET_POS = V(0.16, 0, 0.07) // on the floor between him and the easel
 const SPLIT_BELOW = 0.8 // windows narrower than this (width / height) get the two-part picture
 
 // c: what to look at. from: which way the camera sits from it. box: what must fit, [wide, high].
@@ -31,7 +32,7 @@ const SHOTS = {
   canvas: { on: 'canvas', c: [0.02, -0.062, 0], from: [0.05, 0, 1], box: [1.0, 0.84], fov: 30, push: 0.003, close: true },
   // from the easel's side: his face while he works, the canvas at an angle
   side: { c: [-0.22, 0.88, -0.05], from: [0.42, 0.04, 0.9], box: [2.9, 1.9], fov: 25, push: 0.003 },
-  palette: { palette: true, box: [0.62, 0.46], fov: 28, push: 0.004 },
+  palette: { palette: true, box: [0.66, 0.5], fov: 19, push: 0.004 },
   // the two halves of the upright picture
   top: { on: 'canvas', c: [0, 0, 0], from: [0.04, 0, 1], box: [0.95, 0.712], fov: 30, push: 0, close: true },
   under: { c: [-0.36, 0.82, 0], from: [0.14, 0.03, 1], box: [1.5, 1.86], fov: 24, push: 0.003 },
@@ -140,6 +141,7 @@ export class Stage {
     s.fillStyle = sg
     s.fillRect(0, 0, 128, 128)
     const stex = new THREE.CanvasTexture(sc)
+    this.shadowTex = stex
     this.blob = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.8), new THREE.MeshBasicMaterial({ map: stex, transparent: true, depthWrite: false }))
     this.blob.rotation.x = -Math.PI / 2
     this.blob.position.set(HOST_POS.x + 0.05, 0.004, HOST_POS.z + 0.02)
@@ -155,14 +157,7 @@ export class Stage {
     const get = (n) => named[n]
     root.traverse((o) => {
       named[o.name] = o
-      if (o.isMesh) {
-        o.frustumCulled = false
-        if (o.material.name === 'palette') {
-          o.material.transparent = true
-          o.material.depthWrite = false
-          o.renderOrder = 2
-        }
-      }
+      if (o.isMesh) o.frustumCulled = false
     })
 
     // the easel
@@ -235,6 +230,16 @@ export class Stage {
         }
       })
     }
+
+    // the bucket of thinner he washes the brush in
+    this.bucket = get('bucket')
+    this.bucket.position.copy(BUCKET_POS)
+    this.bucket.rotation.y = 0.3
+    this.scene.add(this.bucket)
+    const under = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.38), new THREE.MeshBasicMaterial({ map: this.shadowTex, transparent: true, depthWrite: false }))
+    under.rotation.x = -Math.PI / 2
+    under.position.set(BUCKET_POS.x + 0.03, 0.003, BUCKET_POS.z + 0.01)
+    this.scene.add(under)
 
     // arms: rubbery tubes from shoulder to hand, rebuilt every frame
     const mat = new THREE.MeshStandardMaterial({ color: BLUE, roughness: 0.62 })
@@ -428,13 +433,14 @@ export class Stage {
     } else if (this.mode === 'load') {
       const dip = 0.5 + 0.5 * Math.sin(t * 13)
       P = this.blobPoint(this.loadBlob, 0.012 + dip * 0.03)
-      A = V(0.3, 0.8, 0.5).normalize()
+      // the handle leans back towards the shoulder it hangs from, which keeps his hand off to one side
+      A = sL.clone().sub(P).normalize().multiplyScalar(0.85).add(V(0, 0.5, 0.08)).normalize()
       F = V(1, 0, 0)
     } else if (this.mode === 'wash') {
-      // swishing it about in the bucket, down by the foot of the easel
-      const foot = EASEL_POS.clone().addScaledVector(this.cx, -0.42).add(V(0, -0.8, 0.22))
-      P = foot.add(V(Math.sin(t * 15) * 0.05, Math.sin(t * 9) * 0.02, Math.cos(t * 15) * 0.04))
-      A = V(-0.5, 0.82, 0.25).normalize()
+      // down into the bucket, scrubbing it round under the thinner
+      const b = this.bucket.position
+      P = V(b.x + Math.sin(t * 15) * 0.04, this.layout.bucket.liquid - 0.035 + Math.sin(t * 30) * 0.012, b.z + Math.cos(t * 15) * 0.03)
+      A = V(-0.42, 0.86, 0.22).normalize()
       F = V(0, 0, 1)
     } else if (this.mode === 'beat') {
       // knocking it dry on the leg of the easel: eleven strikes a second, as on the programme
@@ -475,9 +481,10 @@ export class Stage {
 
     this.hl = this.tipPos.clone().addScaledVector(Y, this.grip[tool])
     this.handL.position.copy(this.hl)
-    const hr = this.palette.localToWorld(V(-0.02, -0.03, 0.02))
+    // his other hand grips the palette by the end nearest his body, mostly from underneath: clear of the paint
+    const hr = this.palette.localToWorld(V(-0.055, -0.04, 0.0))
     this.handR.position.copy(hr)
-    this.bendArm(this.armR, this.sR, hr, 0.32, V(-0.05, 0, 0.05))
+    this.bendArm(this.armR, this.sR, hr, 0.3, V(-0.04, 0, 0.04))
 
     this.shake = Math.max(0, this.shake - dt * 2.2)
     if (this.paintVersion !== this.painter.version) {
@@ -498,12 +505,9 @@ export class Stage {
       return
     }
     this.handL.scale.setScalar(1)
-    if (s.palette) {
-      // seen from above the palette, his own arm would be in the way: bring it in from the corner
-      const right = V(1, 0, 0).applyQuaternion(this.camera.quaternion)
-      const down = V(0, -1, 0).applyQuaternion(this.camera.quaternion)
-      this.bendArm(this.armL, this.hl.clone().addScaledVector(right, 0.5).addScaledVector(down, 0.42), this.hl, 0.02, V(0, 0, 0))
-    } else this.bendArm(this.armL, this.sL, this.hl, 0.2, V(0, 0, 0.06))
+    // otherwise it is his own arm, from his own shoulder; reaching for paint it arches over the palette
+    if (this.mode === 'load') this.bendArm(this.armL, this.sL, this.hl, -0.05, V(0, 0.02, 0.05))
+    else this.bendArm(this.armL, this.sL, this.hl, 0.2, V(0, 0, 0.06))
   }
 
   resize() {

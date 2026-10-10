@@ -321,8 +321,9 @@ M_EYE = material('eye', rough=0.12)
 M_METAL = material('metal', rough=0.38, metal=1.0)
 M_MATTE = material('matte', rough=0.9)
 M_WOOD = material('wood', rough=0.55)
-M_PALETTE = material('palette', rough=0.08, alpha=0.38)
+M_PALETTE = material('palette', rough=0.3)  # solid, so the hand under it is not seen through it
 M_PAINT = material('paint', rough=0.28)
+M_PAIL = material('pail', rough=0.48, metal=0.35)
 M_TIP = material('tip', rough=0.4, vcol=False, color=WHITE)
 M_TIP2 = material('tip_round', rough=0.4, vcol=False, color=WHITE)
 M_TIP3 = material('tip_knife', rough=0.3, vcol=False, color=WHITE)
@@ -521,7 +522,8 @@ blobs = Geo()
 layout['blobs'] = {}
 n = len(PAINTS)
 for i, (pid, hx) in enumerate(PAINTS):
-    a = math.radians(205 - 230 * i / (n - 1))
+    # round the far edge and the outer end; the end nearest his body is kept clear for the hand that holds it
+    a = math.radians(150 - 210 * i / (n - 1))
     big = 1.6 if pid == 'white' else 1.0
     x = PCX + math.cos(a) * PA * 0.76
     z = -math.sin(a) * PB * 0.74
@@ -564,6 +566,60 @@ g = Geo().add(tube((0, 0.108, 0), (0, 0.145, 0.022), 0.0035, 0.0035, 8), STEEL)
 g.obj('knife_neck', M_METAL, parent=kn)
 Geo().add(lathe([(0, 0.0), (0.011, 0.004), (0.013, 0.06), (0.01, 0.125), (0, 0.128)], 12), WOOD_DK, T(0, 0.142, 0.022)) \
     .obj('knife_handle', M_WOOD, parent=kn)
+
+# ════════════════════════════════════════════════════════════════════════════
+# the bucket he washes the brush in: a galvanised pail of thinner. The origin is the middle of its base.
+# ════════════════════════════════════════════════════════════════════════════
+bucket = empty('bucket')
+PAIL_H, PAIL_R0, PAIL_R1, LIQUID_Y = 0.215, 0.096, 0.124, 0.15
+PAIL = hexc(0xb9bdc4)
+PAIL_IN = hexc(0x7d838b)
+LABEL = hexc(0xe9dfc6)
+LABEL_RED = hexc(0xb5392c)
+
+
+def pail_r(y):
+    return PAIL_R0 + (PAIL_R1 - PAIL_R0) * (y - 0.012) / (PAIL_H - 0.012)
+
+
+# up the outside (with a paper label round the middle), over the rolled rim, down the inside
+rows = [(0, 0.0, PAIL_IN), (0.092, 0.0, PAIL), (PAIL_R0, 0.012, PAIL)]
+for y, c in ((0.060, PAIL), (0.061, LABEL_RED), (0.072, LABEL_RED), (0.073, LABEL), (0.137, LABEL),
+             (0.138, LABEL_RED), (0.149, LABEL_RED), (0.150, PAIL)):
+    rows.append((pail_r(y), y, c))
+rows += [(PAIL_R1, PAIL_H, PAIL), (0.131, 0.222, PAIL), (0.131, 0.230, PAIL), (0.122, 0.230, PAIL),
+         (0.119, PAIL_H, PAIL_IN), (0.094, 0.02, PAIL_IN), (0, 0.02, PAIL_IN)]
+SEG_P = 40
+pv, pf = lathe([(r, y) for r, y, _ in rows], SEG_P)
+pc = []
+for r, y, c in rows:
+    pc += [c] * (1 if r < 1e-6 else SEG_P)
+Geo().add((pv, pf), pc).obj('bucket_pail', M_PAIL, parent=bucket)
+
+# the thinner, well used
+r_in = 0.094 + (0.119 - 0.094) * (LIQUID_Y - 0.02) / (PAIL_H - 0.02)
+Geo().add(lathe([(0, LIQUID_Y), (r_in * 0.6, LIQUID_Y), (r_in, LIQUID_Y)], SEG_P), hexc(0x55646e)) \
+    .obj('bucket_liquid', M_PAINT, parent=bucket)
+
+# a wire handle, fallen forward against the side, and the two ears it hangs from
+g = Geo()
+HR, DROP = 0.14, math.radians(35)
+pts = [Vector((HR * math.cos(a), 0.212 - HR * math.sin(a) * math.sin(DROP), HR * math.sin(a) * math.cos(DROP)))
+       for a in (math.pi * i / 18 for i in range(19))]
+for a, b in zip(pts, pts[1:]):
+    g.add(tube(a, b, 0.0036, 0.0036, 8, caps=False), STEEL)
+for sx in (-1, 1):
+    g.add(box(0.012, 0.03, 0.022), STEEL, T(sx * 0.134, 0.208, 0))
+g.obj('bucket_handle', M_METAL, parent=bucket)
+
+# where the brush has been wiped on the rim
+g = Geo()
+for ang, y, hx in ((0.5, 0.2, 0x123c8c), (-0.55, 0.196, 0xf5f2e8), (2.3, 0.2, 0xd9281e), (1.2, 0.19, 0x3f6b24)):
+    dv, df = ellipsoid(0.013, 0.024, 0.006, 10, 6)
+    g.add((dv, df), hexc(hx), T(math.sin(ang) * (pail_r(y) + 0.002), y, math.cos(ang) * (pail_r(y) + 0.002)) @ RY(ang))
+g.obj('bucket_drips', M_PAINT, parent=bucket)
+
+layout['bucket'] = {'h': 0.23, 'r': 0.122, 'liquid': LIQUID_Y}
 
 # ── tidy: consistent normals everywhere ─────────────────────────────────────
 for ob in bpy.data.objects:
@@ -632,6 +688,7 @@ if HERO:
     b2.rotation_euler = (math.radians(180), math.radians(12), math.radians(0))
     b1.location = bl((5, 0, 0))
     kn.location = bl((5, 0, 0))
+    bucket.location = bl((0.2, 0, 0.42))
 
     world = bpy.data.worlds.new('w')
     world.use_nodes = True

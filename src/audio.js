@@ -15,6 +15,7 @@ const SFX = '/sfx/'
 export class Audio {
   constructor() {
     this.on = false
+    this.wanted = true // the viewer has not turned the sound off
     this.ctx = null
     this.speed = 1
     this.voiceDur = {}
@@ -45,6 +46,24 @@ export class Audio {
   /** seconds a line's recording runs, or undefined if there is none */
   durationOf(id) {
     return this.voiceDur[id]
+  }
+
+  /** fetch and decode what will be needed, so that nothing has to be waited for once sound is allowed */
+  prepare() {
+    if (!this.ctx) this.build()
+    if (this.ctx) this.warm()
+  }
+
+  /**
+   * Will the browser let this page be heard without being touched first? Some do (a site the viewer
+   * visits and listens to often), most do not. Ask, and wait a moment for the answer.
+   */
+  async canStart() {
+    if (!this.ctx) return false
+    if (this.ctx.state !== 'running') {
+      await Promise.race([this.ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 350))])
+    }
+    return this.ctx.state === 'running'
   }
 
   enable(on) {
@@ -111,9 +130,9 @@ export class Audio {
     return this.buffers.get(url)
   }
 
-  /** fetch the recordings for lines that are coming up (only if sound is wanted) */
+  /** fetch the recordings for lines that are coming up (unless the viewer has turned the sound off) */
   preload(ids) {
-    if (!this.on || !this.ctx) return
+    if (!this.ctx || !this.wanted) return
     for (const id of ids) if (this.voiceDur[id] !== undefined) this.load(`${VOICE}${id}.mp3`)
   }
 

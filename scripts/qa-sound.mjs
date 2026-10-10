@@ -75,7 +75,7 @@ const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 await page.goto(`${BASE}/?ep=7`, { waitUntil: 'load' })
 await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready)
-await page.mouse.click(640, 500) // the first click turns the sound on
+// this browser allows sound untouched, so the programme has started with its sound on
 // wait until every effect clip is in hand, so that it is the recordings being measured and not the stand-ins
 await page.waitForFunction(() => {
   const a = window.__jop.audio
@@ -97,8 +97,8 @@ console.log(`effect clips: ${about.groups.join(', ') || 'none yet, stand-ins are
 ok(about.on && about.state === 'running', 'the sound does not come on with the first click')
 
 /** run the programme in real time from where `seekTo` leaves it, recording for `seconds` */
-async function record(name, seekTo, seconds, how = {}) {
-  const b64 = await page.evaluate(async ([seekSrc, secs]) => {
+async function record(name, seekTo, seconds, how = {}, pg = page) {
+  const b64 = await pg.evaluate(async ([seekSrc, secs]) => {
     const j = window.__jop
     j.show.setSpeed(8)
     new Function('j', seekSrc)(j)
@@ -216,6 +216,39 @@ await page.waitForFunction(() => window.__jop.show.ep.no === 7 && window.__jop.s
 r = await record('theme', '', 3.5, { rise: 8, look: 0.05, apart: 0.15, smooth: 8 })
 console.log(`\nthe theme, under the title card: peak ${r.peak.toFixed(0)} dB, ${r.events.length} notes begin in the first ${r.seconds.toFixed(1)}s`)
 ok(r.peak > -40, 'no music on the title card')
+
+// 6. a first visit, in a browser that will not play sound until it is clicked: from the click to the sound
+{
+  const blocked = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist'] })
+  const p2 = await blocked.newPage({ viewport: { width: 1280, height: 800 } })
+  p2.on('pageerror', (e) => errors.push(e.message))
+  await p2.goto(`${BASE}/`, { waitUntil: 'load' })
+  await p2.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.show.held && !document.getElementById('bPlay').hidden, null, { timeout: 45000 })
+  // everything it will need is fetched while it waits
+  const ready = await p2.waitForFunction(() => {
+    const a = window.__jop.audio
+    return a.ctx && Object.values(a.groups).flat().every((n) => a.cache[n])
+  }, null, { timeout: 20000 }).then(() => true, () => false)
+  ok(ready, 'the sounds are not fetched while it waits to be started')
+  await p2.evaluate(() => {
+    const j = window.__jop
+    const d = j.audio.ctx.createMediaStreamDestination()
+    j.audio.master.connect(d)
+    window.__tape = d.stream
+  })
+  const t0 = Date.now()
+  await p2.mouse.click(640, 250)
+  await p2.waitForFunction(() => window.__jop.audio.on && window.__jop.audio.ctx.state === 'running' && !window.__jop.show.held && window.__jop.show.clock > 0)
+  const ms = Date.now() - t0
+  const rr = await record('first-click', '', 2.5, { rise: 8, look: 0.05, apart: 0.15, smooth: 8 }, p2)
+  const st = await p2.evaluate(() => ({ kind: window.__jop.show.state.kind, clock: window.__jop.show.clock, ep: window.__jop.show.ep.no, url: location.pathname + location.search }))
+  console.log(`\na first visit: waiting behind the play button; ${ms} ms after one click the programme is running with sound`)
+  console.log(`  in the 2.5s that follow: peak ${rr.peak.toFixed(0)} dB, the first sound ${rr.events.length ? (rr.events[0].at * 1000).toFixed(0) + ' ms in' : 'never'}; then at "${st.kind}", ${st.clock.toFixed(1)}s into episode ${st.ep}; address ${st.url}`)
+  ok(ms < 700, `it took ${ms} ms to start after the click`)
+  ok(rr.peak > -40 && rr.events.length > 0 && rr.events[0].at < 0.6, 'nothing is heard straight after the click')
+  ok(st.kind === 'title' && st.clock < 4.5, 'the click did not start the programme from the top')
+  await blocked.close()
+}
 
 if (errors.length) ok(false, `page errors: ${[...new Set(errors)].join(' | ')}`)
 await browser.close()

@@ -13,7 +13,6 @@ export class UI {
     this.t = { cc: 0, color: 0, lower: 0, osd: 0 }
     this.creditI = -1
     this.lastClock = ''
-    this.osd('PLAY ▶', 3)
   }
 
   episode(ep) {

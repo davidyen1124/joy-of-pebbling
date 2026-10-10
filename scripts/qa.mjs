@@ -4,7 +4,7 @@
 //
 //   BASE=http://127.0.0.1:5191 node scripts/qa.mjs          (dev server, or a preview of the build)
 //   BASE=https://… node scripts/qa.mjs                      (the deployed site)
-//   node scripts/qa.mjs layout|episodes|rhythm|fit|webkit   (one part)
+//   node scripts/qa.mjs layout|direct|episodes|rhythm|fit|webkit   (one part)
 //
 // Writes screenshots to qa/shots/ and exits 1 if anything failed.
 import { chromium, webkit } from 'playwright'
@@ -41,7 +41,10 @@ const ok = (cond, where, what) => {
   return cond
 }
 
-const ARGS = ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required']
+// A browser as a first-time visitor has it: it will not let a page be heard until the page is touched.
+const ARGS = ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist']
+// And one that will (as for a site the viewer listens to often).
+const FREE = [...ARGS, '--autoplay-policy=no-user-gesture-required']
 
 async function open(browser, w, h, dpr, touch, query = 'ep=12') {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch && browser.browserType().name() === 'chromium' })
@@ -104,8 +107,9 @@ const measure = () => {
     split: j.stage.split, top,
     bar: q('#screen').classList.contains('on') || q('#bar').matches(':focus-within'),
     keys: [...document.querySelectorAll('.bar-keys button')].map((k) => ({ id: k.id, ...R(k), clipped: k.scrollWidth > k.clientWidth + 1 })),
-    fine: R(q('.fine')),
-    cue: vis(q('#soundcue')) ? R(q('#soundcue')) : null,
+    play: vis(q('#bPlay')) ? R(q('#bPlay')) : null,
+    held: j.show.held,
+    clock: j.show.clock,
     cc: cc.textContent ? { ...R(cc), text: cc.textContent, lines: new Set([...cc.getClientRects()].map((r) => Math.round(r.top))).size } : null,
     color: vis(q('#colorname')) ? { ...R(q('#colorname')), text: q('#colorname').textContent } : null,
     lower: vis(q('#lower')) ? R(q('#lower')) : null,
@@ -126,32 +130,37 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   const shot = (n) => page.screenshot({ path: `${OUT}/${name}-${n}.png` })
   const view = { x: 0, y: 0, r: w, b: h }
   const upright = w / h < 0.8
-  const poke = async () => (touch ? page.touchscreen.tap(w * 0.5, h * 0.62) : page.mouse.click(w * 0.5, h * 0.62))
 
-  // 1. the title card, untouched: nothing on screen but the picture and the invitation to turn the sound on
+  // 1. a first visit: the title card waits behind a play button, and there is nothing else on screen
   await page.waitForTimeout(500)
   let m = await page.evaluate(measure)
-  ok(await page.evaluate(() => getComputedStyle(document.getElementById('bar')).visibility === 'hidden'), name, 'the controls can be seen before anyone asked for them')
   ok(m.fonts.every(Boolean), name, `fonts not loaded: ${m.fonts}`)
   ok(m.scroll.w <= m.vw && m.scroll.h <= m.vh, name, `page scrolls: ${m.scroll.w}x${m.scroll.h} in ${m.vw}x${m.vh}`)
   ok(Math.abs(m.gl.w - w) < 1 && Math.abs(m.gl.h - h) < 1 && m.gl.x === 0 && m.gl.y === 0, name, `the picture does not fill the window: ${JSON.stringify(m.gl)}`)
   ok(m.split === upright, name, `expected ${upright ? 'the two-part' : 'a single'} picture`)
-  ok(!m.bar, name, 'the controls are showing before anyone asked for them')
-  ok(m.cue && inside(m.cue, view), name, 'no invitation to turn the sound on')
+  ok(m.held && m.play, name, 'it is not waiting behind a play button')
+  ok(m.play && inside(m.play, view) && m.play.w >= 88 && m.play.h >= 88, name, `the play button is off the screen or small: ${JSON.stringify(m.play)}`)
+  ok(!m.bar && (await page.evaluate(() => getComputedStyle(document.getElementById('bar')).display === 'none')), name, 'the controls can be seen before it has started')
   ok(m.state.kind === 'title' && m.title, name, 'no title card at the start')
   if (m.title) for (const [k, r] of Object.entries(m.title)) ok(inside(r, view, 1), name, `title card: "${k}" runs off the screen`)
   if (m.title) ok(!overlap(m.title.main, m.title.slate) && !overlap(m.title.wth, m.title.slate) && !overlap(m.title.the, m.title.main), name, 'title card: lines overlap')
-  if (m.title && m.cue) ok(!overlap(m.cue, m.title.main), name, 'the sound invitation covers the title')
-  await shot('1-title')
+  if (m.title && m.play) for (const [k, r] of Object.entries(m.title)) ok(!overlap(m.play, r), name, `the play button covers the title card's "${k}"`)
+  await page.waitForTimeout(350)
+  ok((await page.evaluate(() => window.__jop.show.clock)) === 0, name, 'the programme is running before it has been started')
+  await shot('1-poster')
 
-  // 2. the first touch turns the sound on, and does nothing else
-  await poke()
-  await page.waitForTimeout(250)
-  let s = await page.evaluate(() => ({ on: window.__jop.audio.on, state: window.__jop.audio.ctx?.state, paused: window.__jop.show.paused }))
+  // 2. one click or tap, anywhere, starts it from the top with its sound
+  await (touch ? page.touchscreen.tap(w * 0.5, h * 0.3) : page.mouse.click(w * 0.5, h * 0.3))
+  await page.waitForTimeout(700)
+  let s = await page.evaluate(() => ({ on: window.__jop.audio.on, state: window.__jop.audio.ctx?.state, paused: window.__jop.show.paused, held: window.__jop.show.held, kind: window.__jop.show.state.kind, clock: window.__jop.show.clock, play: !document.getElementById('bPlay').hidden }))
+  ok(!s.held && !s.play, name, 'still waiting after it was touched')
   ok(s.on && s.state === 'running', name, `the first ${touch ? 'tap' : 'click'} does not turn the sound on (${JSON.stringify(s)})`)
   ok(!s.paused, name, 'the first touch paused the programme')
+  ok(s.kind === 'title' && s.clock > 0.25 && s.clock < 1.6, name, `it did not start from the top at once (${s.kind}, ${s.clock.toFixed(2)}s)`)
+  // the controls come when called
+  await (touch ? page.touchscreen.tap(w * 0.5, h * 0.62) : page.mouse.move(w * 0.5, h * 0.62))
+  await page.waitForTimeout(250)
   m = await page.evaluate(measure)
-  ok(!m.cue, name, 'the sound invitation stays after the sound is on')
   ok(m.bar, name, 'the controls do not come when the screen is touched')
   for (const k of m.keys) {
     ok(inside(k, view), name, `control ${k.id} is off the screen`)
@@ -160,7 +169,7 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   }
   for (let i = 0; i < m.keys.length; i++) for (let k = i + 1; k < m.keys.length; k++) ok(!overlap(m.keys[i], m.keys[k]), name, `controls ${m.keys[i].id} and ${m.keys[k].id} overlap`)
   ok(new Set(m.keys.map((k) => Math.round(k.y))).size <= 2, name, `the controls take ${new Set(m.keys.map((k) => Math.round(k.y))).size} rows`)
-  ok(inside(m.fine, view), name, 'the small print is off the screen')
+  ok(!(await page.evaluate(() => /parody|affiliated/i.test(document.body.innerText))), name, 'the small print is back')
   await shot('2-controls')
   // ...and they go away again by themselves
   await page.mouse.move(2, h - 2)
@@ -193,6 +202,23 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   ok(m.shot === 'palette', name, `expected the palette shot, got ${m.shot}`)
   if (upright) ok(m.color.b <= h * m.top + 2, name, 'the colour name is not on the canvas half')
   await shot('4-palette')
+
+  // 4b. washing the brush: there is a bucket, it is in the picture, and the brush is in it
+  const wash = await page.evaluate(() => {
+    const j = window.__jop
+    j.seek('beat')
+    j.advance(j.show.beats[j.show.bi].washAt + 0.8)
+    j.show.update(0)
+    const st = j.stage
+    const mid = st.bucket.position.clone()
+    mid.y += st.layout.bucket.h / 2
+    const n = mid.project(st.camera)
+    return { mode: st.mode, x: n.x, y: n.y, off: Math.hypot(st.tipPos.x - st.bucket.position.x, st.tipPos.z - st.bucket.position.z), tipY: st.tipPos.y, r: st.layout.bucket.r, h: st.layout.bucket.h }
+  })
+  ok(wash.mode === 'wash', name, `expected him to be washing the brush, got ${wash.mode}`)
+  ok(Math.abs(wash.x) < 0.97 && Math.abs(wash.y) < 0.97, name, `the bucket is out of the picture (${wash.x.toFixed(2)}, ${wash.y.toFixed(2)})`)
+  ok(wash.off < wash.r && wash.tipY < wash.h && wash.tipY > 0.02, name, `the brush is not in the bucket (${wash.off.toFixed(2)} from its middle, ${wash.tipY.toFixed(2)} up)`)
+  await shot('4b-wash')
 
   // 5. painting the body
   const v0 = await page.evaluate(() => {
@@ -266,7 +292,7 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   if (featured.length) ok(featured.includes(after), name, `Next would go to episode ${after}, which is not one of the recorded ones (${featured})`)
   await press('#bNext')
   await page.waitForFunction((n) => window.__jop.show.ep.no === n && window.__jop.show.state.kind === 'title', after, { timeout: 8000 }).catch(() => fail(name, 'Next does not start the next episode'))
-  ok(page.url().includes(`ep=${after}`), name, 'the address does not follow the episode')
+  ok(!page.url().includes('?'), name, `the address is not left clean: ${page.url()}`)
   if (featured.length) ok(await page.evaluate(() => window.__jop.show.speaks && window.__jop.show.voiced === window.__jop.show.beats.flatMap((b) => b.cues).length), name, 'the episode after Next is not fully voiced')
 
   // 9. viewer mail
@@ -292,7 +318,7 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   await page.waitForFunction(() => window.__jop.show.ep.spec.job === 'wizard' && window.__jop.show.state.kind === 'title', null, { timeout: 8000 }).catch(() => fail(name, 'a request is not painted'))
   const sp = await page.evaluate(() => window.__jop.show.ep.spec)
   ok(sp.kind === 'tall' && sp.hair === 'beehive' && sp.hairColor === 'pink' && sp.color === 'sap', name, `the request was not honoured: ${JSON.stringify(sp)}`)
-  ok(['k=tall', 'j=wizard', 'h=beehive'].every((x) => page.url().includes(x)), name, 'the request is not in the address')
+  ok(!page.url().includes('?'), name, `the address is not left clean after a request: ${page.url()}`)
   await page.evaluate(() => {
     window.__jop.show.setSpeed(8)
     window.__jop.seek('outro')
@@ -307,6 +333,34 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   ok(errors.length === 0, name, `errors: ${[...new Set(errors)].join(' | ')}`)
   notes.push(`${name}: ${upright ? `two-part picture, canvas takes the top ${(m.top * 100).toFixed(0)}%` : 'single picture'}`)
   await ctx.close()
+}
+
+// in a browser that allows it, the programme simply starts: no button, no click, sound and all
+async function direct() {
+  console.log('\na browser that will play sound untouched')
+  const free = await chromium.launch({ args: FREE })
+  for (const [name, w, h, touch] of [['direct-desktop', 1440, 900, false], ['direct-phone', 390, 844, true]]) {
+    const ctx = await free.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch })
+    const page = await ctx.newPage()
+    const errors = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    await page.goto(`${BASE}/`, { waitUntil: 'load' })
+    await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready && window.__jop.show.state.kind === 'title', null, { timeout: 45000 })
+    await page.waitForTimeout(900)
+    const s = await page.evaluate(() => {
+      const j = window.__jop
+      return { held: j.show.held, on: j.audio.on, state: j.audio.ctx?.state, play: !document.getElementById('bPlay').hidden, kind: j.show.state.kind, clock: j.show.clock, url: location.pathname + location.search, ep: j.show.ep.no, featured: j.audio.featured, speaks: j.show.speaks }
+    })
+    ok(!s.held && !s.play, name, 'it waits behind a play button although sound is allowed')
+    ok(s.on && s.state === 'running', name, `it started without its sound (${JSON.stringify(s)})`)
+    ok(s.clock > 0.5, name, 'the programme is not running')
+    ok(s.url === '/', name, `the address has been written on: ${s.url}`)
+    if (s.featured.length) ok(s.featured[0] === s.ep && s.speaks, name, `it does not open with an episode Cobb has recorded (episode ${s.ep})`)
+    ok(errors.length === 0, name, `errors: ${errors.join(' | ')}`)
+    console.log(`  ${name}: playing ${s.kind} at ${s.clock.toFixed(1)}s, sound ${s.on ? 'on' : 'off'}, episode ${s.ep}, address ${s.url}`)
+    await ctx.close()
+  }
+  await free.close()
 }
 
 async function episodes(browser) {
@@ -502,6 +556,7 @@ async function fit(browser) {
 const only = process.argv[2]
 const browser = await chromium.launch({ args: ARGS })
 if (!only || only === 'layout') for (const s of SIZES) await layout(browser, s)
+if (!only || only === 'direct') await direct()
 if (!only || only === 'episodes') await episodes(browser)
 if (!only || only === 'rhythm') await rhythm(browser)
 if (!only || only === 'fit') await fit(browser)

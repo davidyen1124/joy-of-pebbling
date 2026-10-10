@@ -20,11 +20,17 @@ A fan-made parody. Not affiliated with Bob Ross Inc., PBS or Turnstone.
 - **What the station lays over it.** Closed captions (white capitals on black), each paint's name in
   yellow as he first reaches for it, his name when he says hello, the credits, and the tape machine's
   read-out in the corners.
-- **No furniture.** Until it is touched the only other thing on screen is a blinking "click for sound".
-  Moving the mouse or tapping brings a strip of words across the top (Pause, Speed, Next, Sound, Request,
-  Keep) which goes away again after three seconds. A click on the picture pauses it, as on any video.
-- **The address** carries the episode number (`?ep=427`) and any request, so a Pebble can be sent to a
-  friend and will be painted the same way again.
+- **No furniture.** Nothing else is on screen. Moving the mouse or tapping brings a strip of words across
+  the top (Pause, Speed, Next, Sound, Request, Keep) which goes away again after three seconds. A click on
+  the picture pauses it, as on any video.
+- **Starting.** If the browser will let a page be heard without being touched, the programme simply
+  starts, with its sound. Most will not on a first visit: then it waits on its title card behind a large
+  play button, everything it needs already fetched, and one click, tap or key anywhere starts it from the
+  top, sound and all.
+- **Viewer Mail** (Request) is the tape machine's own menu laid over the picture: choose a colour, a
+  shape, a job and a haircut, and Cobb paints that Pebble next.
+- **The address is left alone.** A link may still name an episode (`?ep=427`), and is cleared as soon as
+  the programme moves on from it.
 
 Keys: space or `k` pauses, `f` changes speed, `n` or the right arrow is the next Pebble, `m` is sound.
 
@@ -32,8 +38,8 @@ Keys: space or `k` pauses, `f` changes speed, `n` or the right arrow is the next
 
 Title card, hello, then the landscape from the top down. Each band of it (sky, mountain, water, ground)
 is blocked in soft with the big brush and then gone over with its own tool: criss-crosses for sky, the
-knife for a mountain, taps for foliage. Then he washes the brush and beats it dry on the leg of the
-easel. Then the Pebble: shadow, feet, body, the dark side, clothes, arms, hair, hat, eyes, whatever he
+knife for a mountain, taps for foliage. Then he washes the brush in a bucket of thinner and beats it dry
+on the leg of the easel. Then the Pebble: shadow, feet, body, the dark side, clothes, arms, hair, hat, eyes, whatever he
 holds. Sometimes he drops some paint, which is not a mistake, and which becomes a second, smaller
 Pebble before the end. He signs it in red. About three minutes.
 
@@ -42,9 +48,8 @@ tiny hat always goes on top of the hair, however tall the hair is.
 
 ## Sound
 
-Nothing is heard until the picture is clicked or tapped (a browser will not let a page make a noise
-before that). After that there are three kinds of sound, all recorded, none synthesized in the page:
-Cobb's voice, the brush, and a theme.
+There are three kinds of sound, all recorded, none synthesized in the page: Cobb's voice, the brush, and
+a theme. (When they can start is the browser's decision; see Starting, above.)
 
 ### What the real programme sounds like
 
@@ -131,7 +136,8 @@ clip has not arrived yet.
 `npm run qa:sound` turns the sound on in a real browser, records what the page actually plays, and
 measures the recording the same way the programme was measured: how many strikes in a beating and how
 far apart, how fast the taps and strokes come and how long each lasts, whether a voice is heard for as
-long as the recorded lines run, whether there is music under the title. Recordings and their
+long as the recorded lines run, whether there is music under the title, and, on a first visit, how long
+after the one click the programme is running and heard (about 0.4 s). Recordings and their
 spectrograms go to `qa/audio/`.
 
 ## How the rest was made
@@ -147,8 +153,8 @@ The briefs are in `scripts/codex-plates.md` and `scripts/codex-title.md`; the ti
 from a Blender render of Cobb passed in as a reference. Originals are in `assets-src/`.
 
 **Blender, from the command line**, builds Cobb and his studio: `blender/build_set.py` makes every mesh
-(body, afro, beard, eyebrows, collar, easel, palette with thirteen blobs of paint, two brushes and a
-knife) in code, colours the vertices, and exports `public/models/set.glb` with a small JSON of anchor
+(body, afro, beard, eyebrows, collar, easel, palette with thirteen blobs of paint, two brushes, a knife
+and a bucket of thinner) in code, colours the vertices, and exports `public/models/set.glb` with a small JSON of anchor
 points. Given a second argument it also renders a portrait with Cycles.
 
 ```sh
@@ -216,15 +222,19 @@ BASE=https://joy-of-pebbling.vercel.app npm run qa   # the live site
 `scripts/qa.mjs` drives the real page with Playwright:
 
 - **Layout, at thirteen window sizes** from a 320-wide phone to an ultrawide monitor, upright and on its
-  side, by mouse and by touch: the page never scrolls; the picture fills the window exactly; upright
-  windows get the two-part picture and both parts have something in them (pixels read back from WebGL);
-  nothing but the picture and the sound invitation is on screen until it is touched; the first click or
-  tap turns the sound on and does nothing else; the controls come, are all on screen, at least 44 by 44,
-  apart, unclipped, in at most two rows, and go away again; the title card, captions, colour names, name
-  caption and credits are on screen and off each other. Then it presses everything: pause really stops
-  the tape, speed changes, sound goes off and on, a click on the picture pauses, Next starts the next
-  episode and the address follows, a Viewer Mail request fits the window, is honoured exactly and lands
-  in the address.
+  side, by mouse and by touch, in a browser that will not play sound until it is touched (a first visit):
+  the page never scrolls; the picture fills the window exactly; it waits on its title card behind a play
+  button that is on screen, large, and clear of the title, and the programme does not run meanwhile; one
+  click or tap anywhere starts it from the top with the sound on; the controls come when called, are all
+  on screen, at least 44 by 44, apart, unclipped, in at most two rows, and go away again; captions,
+  colour names, name caption and credits are on screen and off each other; upright windows get the
+  two-part picture and both parts have something in them (pixels read back from WebGL); when he washes
+  the brush the bucket is in the picture and the brush is in the bucket. Then it presses everything:
+  pause really stops the tape, speed changes, sound goes off and on, a click on the picture pauses, Next
+  starts the next recorded episode, a Viewer Mail request fits the window and is honoured exactly, and
+  the address is left clean throughout.
+- **A browser that allows sound untouched**: the programme starts by itself, with sound, on an episode
+  Cobb has recorded, no button shown, the address untouched.
 - **Twenty whole episodes, and every recorded one**, start to finish: each reaches its credits, has
   paint on at least 90% of the canvas, runs between 110 and 260 seconds, has no unfilled blank or
   "a astronaut" in any line, says nothing that is not on the recording list, and rolls on to another

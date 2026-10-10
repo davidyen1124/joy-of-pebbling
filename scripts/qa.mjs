@@ -1,9 +1,10 @@
 // QA for The Joy of Pebbling. Drives the real page in Chromium at thirteen window sizes and measures
-// it; then runs whole episodes end to end; then draws every tall-hair/tall-hat Pebble to make sure
-// nothing is cut off by the edge of the canvas.
+// it; then runs whole episodes end to end; then checks the brush keeps the rhythm measured off the real
+// programme; then draws every tall-hair/tall-hat Pebble to make sure nothing is cut off by the canvas.
 //
 //   BASE=http://127.0.0.1:5191 node scripts/qa.mjs          (dev server, or a preview of the build)
 //   BASE=https://… node scripts/qa.mjs                      (the deployed site)
+//   node scripts/qa.mjs layout|episodes|rhythm|fit|webkit   (one part)
 //
 // Writes screenshots to qa/shots/ and exits 1 if anything failed.
 import { chromium, webkit } from 'playwright'
@@ -48,11 +49,13 @@ async function open(browser, w, h, dpr, touch, query = 'ep=12') {
   const errors = []
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push('console: ' + m.text())
+    // a missing recording manifest is expected until the voice has been recorded
+    if (m.type() === 'error' && !/manifest\.json|404/.test(m.text() + m.location().url)) errors.push('console: ' + m.text())
   })
-  page.on('requestfailed', (r) => errors.push('request failed: ' + r.url()))
+  page.on('requestfailed', (r) => !/\/src\//.test(r.url()) && errors.push('request failed: ' + r.url()))
   page.on('response', (r) => {
-    if (r.status() >= 400) errors.push(`${r.status()}: ${r.url()}`)
+    // a built site has no recordings list until they are made, and no source modules at all
+    if (r.status() >= 400 && !/\/(voice|sfx)\/manifest\.json|\/src\//.test(r.url())) errors.push(`${r.status()}: ${r.url()}`)
   })
   await page.goto(`${BASE}/?${query}`, { waitUntil: 'load' })
   await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready, null, { timeout: 45000 })
@@ -67,47 +70,48 @@ const measure = () => {
     const r = el.getBoundingClientRect()
     return { x: r.left, y: r.top, w: r.width, h: r.height, r: r.right, b: r.bottom }
   }
-  const vis = (el) => !!el && getComputedStyle(el).display !== 'none' && !el.hidden && el.getClientRects().length > 0
+  const vis = (el) => !!el && !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' && +getComputedStyle(el).opacity > 0.05 && el.getClientRects().length > 0
   const q = (s) => document.querySelector(s)
   const doc = document.documentElement
-  const keys = [...document.querySelectorAll('.keys .key')].map((k) => ({ id: k.id, ...R(k), clipped: k.scrollWidth > k.clientWidth + 1 || k.scrollHeight > k.clientHeight + 1 }))
-  const cc = q('#cc span')
-  const ccBox = q('#ccbox')
-  // the picture itself: is anything on it?
   const j = window.__jop
+  // the picture itself: is anything on it? Read the drawing back, in the top and the bottom half.
   j.show.update(0)
   const gl = j.stage.renderer.getContext()
   const W = gl.drawingBufferWidth
   const H = gl.drawingBufferHeight
   const px = new Uint8Array(4)
-  let sum = 0
-  let sq = 0
-  let n = 0
-  for (let y = 0.15; y < 0.9; y += 0.1) {
-    for (let x = 0.1; x < 0.95; x += 0.1) {
-      gl.readPixels(Math.floor(x * W), Math.floor(y * H), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
-      const l = (px[0] + px[1] + px[2]) / 3
-      sum += l
-      sq += l * l
-      n++
+  const spread = (y0, y1) => {
+    let sum = 0
+    let sq = 0
+    let n = 0
+    for (let y = y0; y < y1; y += (y1 - y0) / 7) {
+      for (let x = 0.08; x < 0.95; x += 0.08) {
+        gl.readPixels(Math.floor(x * W), Math.floor(y * H), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+        const l = (px[0] + px[1] + px[2]) / 3
+        sum += l
+        sq += l * l
+        n++
+      }
     }
+    return Math.sqrt(Math.max(0, sq / n - (sum / n) ** 2))
   }
-  const mean = sum / n
+  const cc = q('#cc span')
+  const top = j.stage.topShare
   return {
     vw: innerWidth, vh: innerHeight,
     scroll: { w: doc.scrollWidth, h: doc.scrollHeight },
-    tube: R(q('#tube')), bezel: R(q('.bezel')), panel: R(q('.panel')), gl: R(q('#gl')),
-    keys,
-    fine: vis(q('.fine')) ? R(q('.fine')) : null,
-    tape: R(q('#tape')), tapeTitle: { ...R(q('#epTitle')), clipped: q('#epTitle').scrollWidth > q('#epTitle').clientWidth + 1 },
-    ccIn: vis(q('#cc')) && cc.textContent ? { ...R(cc), text: cc.textContent, lines: cc.getClientRects().length } : null,
-    ccBox: vis(ccBox) ? { ...R(ccBox), text: q('#ccboxText').textContent.trim(), overflow: ccBox.scrollHeight > ccBox.clientHeight + 1 } : null,
+    gl: R(q('#gl')),
+    split: j.stage.split, top,
+    bar: q('#screen').classList.contains('on') || q('#bar').matches(':focus-within'),
+    keys: [...document.querySelectorAll('.bar-keys button')].map((k) => ({ id: k.id, ...R(k), clipped: k.scrollWidth > k.clientWidth + 1 })),
+    fine: R(q('.fine')),
+    cue: vis(q('#soundcue')) ? R(q('#soundcue')) : null,
+    cc: cc.textContent ? { ...R(cc), text: cc.textContent, lines: new Set([...cc.getClientRects()].map((r) => Math.round(r.top))).size } : null,
     color: vis(q('#colorname')) ? { ...R(q('#colorname')), text: q('#colorname').textContent } : null,
     lower: vis(q('#lower')) ? R(q('#lower')) : null,
     title: vis(q('#titlecard')) ? { main: R(q('.tc-main')), the: R(q('.tc-the')), wth: R(q('.tc-with')), slate: R(q('#slate')) } : null,
     credits: vis(q('#credits')) ? [...q('#credits').children].map(R) : null,
-    osd: R(q('#osdR')),
-    picture: { mean, sd: Math.sqrt(Math.max(0, sq / n - mean * mean)) },
+    picture: top ? { upper: spread(1 - top + 0.03, 0.97), lower: spread(0.05, 1 - top - 0.03) } : { upper: spread(0.5, 0.95), lower: spread(0.08, 0.5), all: spread(0.08, 0.95) },
     state: { ...j.show.state }, shot: j.stage.shot, mode: j.stage.mode,
     fonts: ['Caprasimo', 'Inknut Antiqua', 'VT323', 'Yellowtail'].map((f) => document.fonts.check(`20px "${f}"`)),
   }
@@ -117,125 +121,156 @@ const inside = (a, b, pad = 0.5) => a && b && a.x >= b.x - pad && a.y >= b.y - p
 const overlap = (a, b) => a && b && a.x < b.r - 1 && b.x < a.r - 1 && a.y < b.b - 1 && b.y < a.b - 1
 
 async function layout(browser, [name, w, h, dpr, touch]) {
-  console.log(`\n${name} ${w}x${h} @${dpr}`)
+  console.log(`\n${name} ${w}x${h} @${dpr}${touch ? ' touch' : ''}`)
   const { ctx, page, errors } = await open(browser, w, h, dpr, touch)
   const shot = (n) => page.screenshot({ path: `${OUT}/${name}-${n}.png` })
   const view = { x: 0, y: 0, r: w, b: h }
-  const portrait = h >= w
+  const upright = w / h < 0.8
+  const poke = async () => (touch ? page.touchscreen.tap(w * 0.5, h * 0.62) : page.mouse.click(w * 0.5, h * 0.62))
 
-  // 1. the title card
+  // 1. the title card, untouched: nothing on screen but the picture and the invitation to turn the sound on
+  await page.waitForTimeout(500)
   let m = await page.evaluate(measure)
+  ok(await page.evaluate(() => getComputedStyle(document.getElementById('bar')).visibility === 'hidden'), name, 'the controls can be seen before anyone asked for them')
   ok(m.fonts.every(Boolean), name, `fonts not loaded: ${m.fonts}`)
   ok(m.scroll.w <= m.vw && m.scroll.h <= m.vh, name, `page scrolls: ${m.scroll.w}x${m.scroll.h} in ${m.vw}x${m.vh}`)
-  ok(inside(m.bezel, view), name, 'the television is not fully on screen')
-  ok(inside(m.panel, view), name, `the panel is not fully on screen (bottom ${m.panel?.b} of ${h})`)
-  ok(!overlap(m.bezel, m.panel), name, 'the screen and the panel overlap')
-  ok(Math.abs(m.tube.w / m.tube.h - 4 / 3) < 0.012, name, `picture is not 4:3 (${(m.tube.w / m.tube.h).toFixed(3)})`)
-  ok(m.tube.w >= (portrait ? Math.min(w * 0.82, (h - 420) * 1.3) : 0) && m.tube.h >= 200, name, `picture is small: ${Math.round(m.tube.w)}x${Math.round(m.tube.h)}`)
-  const fill = (m.bezel.w * m.bezel.h + m.panel.w * m.panel.h) / (w * h)
-  notes.push(`${name}: picture ${Math.round(m.tube.w)}x${Math.round(m.tube.h)}, tv+panel cover ${(fill * 100).toFixed(0)}% of the window`)
-  for (const k of m.keys) {
-    ok(inside(k, m.panel), name, `key ${k.id} is outside the panel`)
-    ok(k.w >= 44 && k.h >= 40, name, `key ${k.id} is too small to press: ${Math.round(k.w)}x${Math.round(k.h)}`)
-    ok(!k.clipped, name, `key ${k.id} clips its label`)
-  }
-  for (let i = 0; i < m.keys.length; i++) for (let j = i + 1; j < m.keys.length; j++) ok(!overlap(m.keys[i], m.keys[j]), name, `keys ${m.keys[i].id} and ${m.keys[j].id} overlap`)
-  ok(inside(m.tape, m.panel), name, 'the tape label is outside the panel')
-  ok(!m.tapeTitle.clipped, name, 'the episode title is clipped')
-  if (m.fine) ok(inside(m.fine, m.panel, 1), name, `the small print is cut off (bottom ${Math.round(m.fine.b)} vs panel ${Math.round(m.panel.b)})`)
-  else notes.push(`${name}: small print hidden at this size`)
+  ok(Math.abs(m.gl.w - w) < 1 && Math.abs(m.gl.h - h) < 1 && m.gl.x === 0 && m.gl.y === 0, name, `the picture does not fill the window: ${JSON.stringify(m.gl)}`)
+  ok(m.split === upright, name, `expected ${upright ? 'the two-part' : 'a single'} picture`)
+  ok(!m.bar, name, 'the controls are showing before anyone asked for them')
+  ok(m.cue && inside(m.cue, view), name, 'no invitation to turn the sound on')
   ok(m.state.kind === 'title' && m.title, name, 'no title card at the start')
-  if (m.title) for (const [k, r] of Object.entries(m.title)) ok(inside(r, m.tube, 1), name, `title card: "${k}" runs outside the picture`)
-  if (m.title) ok(!overlap(m.title.main, m.title.slate) && !overlap(m.title.wth, m.title.slate), name, 'title card: title and slate overlap')
+  if (m.title) for (const [k, r] of Object.entries(m.title)) ok(inside(r, view, 1), name, `title card: "${k}" runs off the screen`)
+  if (m.title) ok(!overlap(m.title.main, m.title.slate) && !overlap(m.title.wth, m.title.slate) && !overlap(m.title.the, m.title.main), name, 'title card: lines overlap')
+  if (m.title && m.cue) ok(!overlap(m.cue, m.title.main), name, 'the sound invitation covers the title')
   await shot('1-title')
 
-  // 2. Cobb says hello
+  // 2. the first touch turns the sound on, and does nothing else
+  await poke()
+  await page.waitForTimeout(250)
+  let s = await page.evaluate(() => ({ on: window.__jop.audio.on, state: window.__jop.audio.ctx?.state, paused: window.__jop.show.paused }))
+  ok(s.on && s.state === 'running', name, `the first ${touch ? 'tap' : 'click'} does not turn the sound on (${JSON.stringify(s)})`)
+  ok(!s.paused, name, 'the first touch paused the programme')
+  m = await page.evaluate(measure)
+  ok(!m.cue, name, 'the sound invitation stays after the sound is on')
+  ok(m.bar, name, 'the controls do not come when the screen is touched')
+  for (const k of m.keys) {
+    ok(inside(k, view), name, `control ${k.id} is off the screen`)
+    ok(k.w >= 44 && k.h >= 44, name, `control ${k.id} is too small to press: ${Math.round(k.w)}x${Math.round(k.h)}`)
+    ok(!k.clipped, name, `control ${k.id} clips its label`)
+  }
+  for (let i = 0; i < m.keys.length; i++) for (let k = i + 1; k < m.keys.length; k++) ok(!overlap(m.keys[i], m.keys[k]), name, `controls ${m.keys[i].id} and ${m.keys[k].id} overlap`)
+  ok(new Set(m.keys.map((k) => Math.round(k.y))).size <= 2, name, `the controls take ${new Set(m.keys.map((k) => Math.round(k.y))).size} rows`)
+  ok(inside(m.fine, view), name, 'the small print is off the screen')
+  await shot('2-controls')
+  // ...and they go away again by themselves
+  await page.mouse.move(2, h - 2)
+  await page.waitForTimeout(touch ? 4600 : 3700)
+  ok(!(await page.evaluate(() => document.getElementById('screen').classList.contains('on'))), name, 'the controls do not go away')
+
+  // 3. Cobb says hello
   await page.evaluate(() => {
     window.__jop.seek('talk')
     window.__jop.advance(1.4)
   })
   m = await page.evaluate(measure)
-  ok(m.picture.sd > 12, name, `the studio picture looks blank (sd ${m.picture.sd.toFixed(1)})`)
-  ok(m.lower && inside(m.lower, m.tube), name, 'the name caption is not inside the picture')
-  if (portrait) {
-    ok(m.ccBox && m.ccBox.text.length > 5, name, 'no caption text under the picture')
-    ok(m.ccBox && !m.ccBox.overflow, name, 'the caption box overflows')
-    ok(!m.ccIn, name, 'captions shown twice')
-  } else {
-    ok(m.ccIn && m.ccIn.text.length > 5, name, 'no caption on the picture')
-    ok(m.ccIn && inside(m.ccIn, m.tube), name, 'the caption runs outside the picture')
-    ok(m.ccIn && m.ccIn.lines <= 3, name, `caption wraps to ${m.ccIn?.lines} lines`)
-    ok(!overlap(m.ccIn, m.lower), name, 'the caption covers the name caption')
-  }
-  await shot('2-hello')
+  ok(m.picture.upper > 6 && m.picture.lower > 6, name, `part of the picture is blank (${JSON.stringify(m.picture)})`)
+  ok(m.lower && inside(m.lower, view), name, 'the name caption is off the screen')
+  ok(m.cc && m.cc.text.length > 5, name, 'no caption')
+  ok(m.cc && inside(m.cc, view), name, 'the caption runs off the screen')
+  ok(m.cc && m.cc.lines <= 3, name, `caption wraps to ${m.cc?.lines} lines`)
+  ok(!overlap(m.cc, m.lower), name, 'the caption covers the name caption')
+  await shot('3-hello')
 
-  // 3. the first colour is named, at the palette
+  // 4. the first colour is named, at the palette
   await page.evaluate(() => {
     window.__jop.seek('paint')
     window.__jop.advance(0.5)
   })
   m = await page.evaluate(measure)
   ok(m.color && m.color.text.length > 3, name, 'no colour name')
-  ok(m.color && inside(m.color, m.tube), name, 'the colour name runs outside the picture')
-  if (m.ccIn) ok(!overlap(m.ccIn, m.color), name, 'the caption covers the colour name')
+  ok(m.color && inside(m.color, view), name, 'the colour name runs off the screen')
+  if (m.cc) ok(!overlap(m.cc, m.color), name, 'the caption covers the colour name')
   ok(m.shot === 'palette', name, `expected the palette shot, got ${m.shot}`)
-  await shot('3-palette')
+  if (upright) ok(m.color.b <= h * m.top + 2, name, 'the colour name is not on the canvas half')
+  await shot('4-palette')
 
-  // 4. painting the body, close on the canvas
+  // 5. painting the body
   const v0 = await page.evaluate(() => {
     window.__jop.seek('paint', 'body')
-    window.__jop.advance(1.2)
+    window.__jop.advance(1.6)
     return window.__jop.painter.version
   })
-  await page.evaluate(() => window.__jop.advance(2.2))
+  await page.evaluate(() => window.__jop.advance(2.4))
   m = await page.evaluate(measure)
-  const v1 = await page.evaluate(() => window.__jop.painter.version)
-  ok(v1 > v0, name, 'the painting is not changing')
-  ok(m.mode === 'paint' && m.shot === 'canvas', name, `expected a close-up of the canvas, got ${m.shot}/${m.mode}`)
-  ok(m.picture.sd > 20, name, `the canvas close-up looks blank (sd ${m.picture.sd.toFixed(1)})`)
-  await shot('4-body')
+  ok((await page.evaluate(() => window.__jop.painter.version)) > v0, name, 'the painting is not changing')
+  ok(m.mode === 'paint', name, `expected him to be painting, got ${m.mode}`)
+  ok(m.picture.upper > 10 && m.picture.lower > 6, name, `part of the picture is blank while painting (${JSON.stringify(m.picture)})`)
+  await shot('5-body')
 
-  // 5. the wide shot while he paints the hair
+  // 6. the hair, from further back
   await page.evaluate(() => {
     window.__jop.seek('paint', 'hair')
-    window.__jop.advance(2.2)
+    window.__jop.advance(2.4)
     window.__jop.stage.cut('wide')
     window.__jop.advance(0.3)
   })
-  await shot('5-hair-wide')
+  await shot('6-hair-wide')
 
-  // 6. credits
+  // 7. credits
   await page.evaluate(() => {
     window.__jop.show.setSpeed(8)
     window.__jop.seek('credits')
     window.__jop.show.setSpeed(1)
-    window.__jop.advance(3.1)
+    window.__jop.advance(3.3)
   })
   m = await page.evaluate(measure)
   ok(m.credits && m.credits.length > 0, name, 'no credits')
-  if (m.credits) for (const c of m.credits) ok(inside(c, m.tube), name, 'credits run outside the picture')
-  await shot('6-credits')
+  if (m.credits) for (const c of m.credits) ok(inside(c, view), name, 'credits run off the screen')
+  if (m.credits && upright) for (const c of m.credits) ok(c.b <= h * m.top + 2, name, 'credits are not on the canvas half')
+  await shot('7-credits')
 
-  // 7. controls
-  await page.click('#bPause')
+  // 8. the controls do what they say
+  const bar = async () => {
+    if (touch) {
+      if (!(await page.evaluate(() => document.getElementById('screen').classList.contains('on')))) await page.touchscreen.tap(w * 0.5, h * 0.62)
+    } else await page.mouse.move(w * 0.4 + Math.random() * 20, h * 0.6)
+    await page.waitForTimeout(260)
+  }
+  const press = async (id) => {
+    await bar()
+    await (touch ? page.tap(id) : page.click(id))
+  }
+  await press('#bPause')
   ok(await page.evaluate(() => window.__jop.show.paused), name, 'pause does not pause')
   const c0 = await page.evaluate(() => window.__jop.show.clock)
   await page.waitForTimeout(250)
   ok((await page.evaluate(() => window.__jop.show.clock)) === c0, name, 'the tape keeps running while paused')
-  await page.click('#bPause')
-  await page.click('#bSpeed')
+  await press('#bPause')
+  ok(!(await page.evaluate(() => window.__jop.show.paused)), name, 'pause does not let go')
+  await press('#bSpeed')
   ok((await page.evaluate(() => window.__jop.show.speed)) === 2, name, 'speed does not change')
   ok((await page.textContent('#speedText')).includes('2'), name, 'speed label does not change')
-  await page.click('#bSound')
-  ok(await page.evaluate(() => window.__jop.audio.on && window.__jop.audio.ctx?.state === 'running'), name, 'sound does not start')
-  await page.click('#bSound')
-  const before = await page.evaluate(() => window.__jop.show.ep.no)
-  await page.click('#bNext')
-  await page.waitForFunction((n) => window.__jop.show.ep.no === n + 1 && window.__jop.show.state.kind === 'title', before, { timeout: 8000 }).catch(() => fail(name, 'Next Pebble does not start the next episode'))
-  ok(page.url().includes(`ep=${before + 1}`), name, 'the address does not follow the episode')
+  await press('#bSound')
+  ok(!(await page.evaluate(() => window.__jop.audio.on)), name, 'sound does not turn off')
+  await press('#bSound')
+  ok(await page.evaluate(() => window.__jop.audio.on), name, 'sound does not turn back on')
+  if (!touch) {
+    // a click on the picture pauses, as on any video; keys work
+    await page.mouse.click(w * 0.5, h * 0.7)
+    ok(await page.evaluate(() => window.__jop.show.paused), name, 'a click on the picture does not pause')
+    await page.keyboard.press('k')
+    ok(!(await page.evaluate(() => window.__jop.show.paused)), name, 'the k key does not resume')
+  }
+  // with the sound on, Next is the next episode Cobb has recorded
+  const [before, after, featured] = await page.evaluate(() => [window.__jop.show.ep.no, window.__jop.nextNo(window.__jop.show.ep.no), window.__jop.audio.featured])
+  if (featured.length) ok(featured.includes(after), name, `Next would go to episode ${after}, which is not one of the recorded ones (${featured})`)
+  await press('#bNext')
+  await page.waitForFunction((n) => window.__jop.show.ep.no === n && window.__jop.show.state.kind === 'title', after, { timeout: 8000 }).catch(() => fail(name, 'Next does not start the next episode'))
+  ok(page.url().includes(`ep=${after}`), name, 'the address does not follow the episode')
+  if (featured.length) ok(await page.evaluate(() => window.__jop.show.speaks && window.__jop.show.voiced === window.__jop.show.beats.flatMap((b) => b.cues).length), name, 'the episode after Next is not fully voiced')
 
-  // 8. viewer mail
-  await page.click('#bMail')
+  // 9. viewer mail
+  await press('#bMail')
   await page.waitForTimeout(250)
   const d = await page.evaluate(() => {
     const R = (el) => {
@@ -252,7 +287,7 @@ async function layout(browser, [name, w, h, dpr, touch]) {
     await page.locator(sel).scrollIntoViewIfNeeded()
     await page.click(sel)
   }
-  await shot('7-mail')
+  await shot('8-mail')
   await page.click('#mailSend')
   await page.waitForFunction(() => window.__jop.show.ep.spec.job === 'wizard' && window.__jop.show.state.kind === 'title', null, { timeout: 8000 }).catch(() => fail(name, 'a request is not painted'))
   const sp = await page.evaluate(() => window.__jop.show.ep.spec)
@@ -262,21 +297,33 @@ async function layout(browser, [name, w, h, dpr, touch]) {
     window.__jop.show.setSpeed(8)
     window.__jop.seek('outro')
     window.__jop.show.setSpeed(1)
-    window.__jop.advance(1.5)
+    window.__jop.advance(1.2)
   })
+  await page.mouse.move(3, h - 3)
+  await page.waitForTimeout(touch ? 4600 : 3700)
   m = await page.evaluate(measure)
   ok(m.scroll.w <= m.vw && m.scroll.h <= m.vh, name, 'page scrolls after a request')
-  ok(!m.tapeTitle.clipped && inside(m.tape, m.panel), name, 'the tape label does not fit after a request')
-  if (m.fine) ok(inside(m.fine, m.panel, 1), name, 'the small print is cut off after a request')
-  await shot('8-request-done')
+  await shot('9-request-done')
   ok(errors.length === 0, name, `errors: ${[...new Set(errors)].join(' | ')}`)
+  notes.push(`${name}: ${upright ? `two-part picture, canvas takes the top ${(m.top * 100).toFixed(0)}%` : 'single picture'}`)
   await ctx.close()
 }
 
 async function episodes(browser) {
   console.log('\nwhole episodes, start to finish')
-  const { ctx, page, errors } = await open(browser, 1280, 800, 1, false, 'ep=1')
-  for (const no of [1, 2, 3, 5, 9, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 9998]) {
+  const { ctx, page, errors } = await open(browser, 1280, 800, 1, false, 'ep=1&mute')
+  const known = await page.evaluate(async () => {
+    try {
+      const { allLines } = await import('/src/lines.js')
+      return allLines().map((l) => l.id)
+    } catch {
+      return null
+    }
+  })
+  if (!known) console.log('  (which lines are recorded cannot be cross-checked against the source on a built site)')
+  const featured = await page.evaluate(() => window.__jop.audio.featured)
+  console.log(`  episodes with every line recorded: ${featured.join(', ') || 'none'}`)
+  for (const no of [...featured, 1, 2, 3, 5, 9, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 9998]) {
     const r = await page.evaluate(async (n) => {
       const j = window.__jop
       j.show.skip({ no: n })
@@ -289,9 +336,13 @@ async function episodes(browser) {
         }, 20)
       })
       j.show.setSpeed(8)
-      const labels = j.show.beats.map((b) => b.label || b.kind)
+      const cues = j.show.beats.flatMap((b) => b.cues)
+      const voiced = j.show.voiced
+      const speaks = j.show.speaks
+      const beats = j.show.beats.length
+      const total = Math.round(j.show.total)
       const at = j.seek('credits')
-      // has paint reached the canvas? compare the middle of it with its primed colour
+      // has paint reached the canvas? compare it with its primed colour
       const c = j.painter.ctx.getImageData(0, 0, j.painter.W, j.painter.H).data
       let dark = 0
       let n2 = 0
@@ -303,23 +354,95 @@ async function episodes(browser) {
       j.advance(j.show.beats[j.show.beats.length - 1].dur + 0.5)
       await new Promise((res) => setTimeout(res, 400))
       j.show.setSpeed(1)
-      return { title: j.show.state.episodes, at, labels: labels.length, total: Math.round(j.show.total), painted: dark / n2, nextNo: j.show.ep.no, lines: j.show.beats.flatMap((b) => b.lines || []) }
+      return { at, beats, total, painted: dark / n2, nextNo: j.show.ep.no, lines: cues.map((q) => q.text), ids: cues.map((q) => q.id), voiced, speaks }
     }, no)
     ok(r.at > 15, `ep ${no}`, 'never reached the credits')
     ok(r.painted > 0.9, `ep ${no}`, `canvas only ${(r.painted * 100).toFixed(0)}% painted at the end`)
-    ok(r.nextNo === no + 1, `ep ${no}`, `did not roll on to the next episode (now ${r.nextNo})`)
-    ok(r.total > 90 && r.total < 200, `ep ${no}`, `odd running time ${r.total}s`)
+    // with the sound off: on from a recorded episode to any other, otherwise to the next number
+    if (featured.includes(no)) {
+      ok(r.nextNo !== no, `ep ${no}`, 'did not roll on to another episode')
+      ok(r.voiced === r.lines.length && r.speaks, `ep ${no}`, `listed as fully recorded but only ${r.voiced} of ${r.lines.length} lines are`)
+    } else ok(r.nextNo === no + 1, `ep ${no}`, `did not roll on to the next episode (now ${r.nextNo})`)
+    ok(r.speaks === r.voiced >= r.lines.length * 0.8, `ep ${no}`, 'speaks when it should not, or the reverse')
+    ok(r.total > 110 && r.total < 260, `ep ${no}`, `odd running time ${r.total}s`)
     const bad = r.lines.filter((l) => /\{|\}|undefined|null|NaN|\ba (?!uni|use|one|eu)[aeiou]/i.test(l))
     ok(bad.length === 0, `ep ${no}`, `bad line: ${bad[0]}`)
-    console.log(`  ep ${no}: ${r.labels} beats, ${r.total}s, ${(r.painted * 100).toFixed(0)}% painted`)
+    if (known) {
+      const stray = r.ids.findIndex((id) => !known.includes(id))
+      ok(stray < 0, `ep ${no}`, `says a line that is not on the recording list: "${r.lines[stray]}"`)
+    }
+    console.log(`  ep ${no}: ${r.beats} beats, ${r.lines.length} lines (${r.voiced} recorded), ${r.total}s, ${(r.painted * 100).toFixed(0)}% painted`)
   }
   ok(errors.length === 0, 'episodes', `errors: ${[...new Set(errors)].join(' | ')}`)
   await ctx.close()
 }
 
+// the brush should work at the pace measured off the real programme, and say so to the sound
+async function rhythm(browser) {
+  console.log('\nthe pace of the brush, against the real programme')
+  const { ctx, page } = await open(browser, 1280, 800, 1, false, 'ep=7&mute')
+  const sum = {}
+  let hits = 0
+  let hitSpan = 0
+  for (const ep of [7, 12, 24, 40]) {
+    const rows = await page.evaluate(async (n) => {
+      const j = window.__jop
+      j.show.skip({ no: n })
+      await new Promise((res) => {
+        const t = setInterval(() => {
+          if (j.show.ep && j.show.ep.no === n && j.show.state.kind === 'title') {
+            clearInterval(t)
+            res()
+          }
+        }, 20)
+      })
+      const out = []
+      let cur = null
+      const stamps = []
+      j.painter.onStroke = () => cur && cur.strokes++
+      j.painter.onTap = () => cur && cur.taps++
+      j.stage.onHit = () => stamps.push(j.show.clock)
+      let last = -1
+      for (let t = 0; t < 500 && j.show.state.kind !== 'credits'; t += 1 / 60) {
+        const s = j.show.state
+        if (s.beat !== last) {
+          last = s.beat
+          const b = j.show.beats[s.beat]
+          cur = b && b.kind === 'paint' ? { style: b.job.style + (b.job.plate ? ':' + b.job.plate : ''), dur: b.job.dur, strokes: 0, taps: 0 } : null
+          if (cur) out.push(cur)
+        }
+        j.show.update(1 / 60)
+      }
+      return { out, hits: stamps.length, span: stamps.length ? stamps[stamps.length - 1] - stamps[0] : 0 }
+    }, ep)
+    for (const r of rows.out) {
+      const s = (sum[r.style] ||= { dur: 0, strokes: 0, taps: 0 })
+      s.dur += r.dur
+      s.strokes += r.strokes
+      s.taps += r.taps
+    }
+    hits += rows.hits
+    hitSpan += rows.span
+  }
+  const rate = (k, what) => (sum[k] ? sum[k][what] / sum[k].dur : NaN)
+  const check = (label, v, lo, hi, real) => {
+    console.log(`  ${label.padEnd(34)} ${v.toFixed(1)} a second   (the programme: ${real})`)
+    ok(v >= lo && v <= hi, 'rhythm', `${label}: ${v.toFixed(1)} a second, expected ${lo} to ${hi}`)
+  }
+  check('criss-cross strokes, blocking in', rate('criss:blur', 'strokes'), 3, 7.5, '4 to 5')
+  check('criss-cross strokes, detail', rate('criss:sharp', 'strokes'), 3, 8, '4 to 5')
+  check('taps, foliage', rate('dab:sharp', 'taps'), 3.5, 7.5, '5.1')
+  check('knife scrapes', rate('knife:sharp', 'strokes'), 1, 4, '1.3, in bursts')
+  check('taps, the Pebble', rate('dab', 'taps'), 0.8, 7.5, 'about 5 when he taps')
+  check('strikes on the easel', hits / hitSpan, 10, 12.5, '11.3')
+  ok(hits / 4 >= 19 && hits / 4 <= 25, 'rhythm', `${hits / 4} strikes a beating, expected about 22`)
+  console.log(`  ${'strikes in one beating'.padEnd(34)} ${(hits / 4).toFixed(0)}              (the programme: 22)`)
+  await ctx.close()
+}
+
 async function fit(browser) {
   console.log('\nevery kind x tall hair x tall hat, and every job and haircut: inside the canvas?')
-  const { ctx, page } = await open(browser, 1000, 700, 1, false, 'ep=1')
+  const { ctx, page } = await open(browser, 1000, 700, 1, false, 'ep=1&mute')
   const r = await page.evaluate(async () => {
     const { buildPebble } = await import('/src/pebble.js').catch(() => ({}))
     return buildPebble ? 'dev' : 'built'
@@ -380,10 +503,11 @@ const only = process.argv[2]
 const browser = await chromium.launch({ args: ARGS })
 if (!only || only === 'layout') for (const s of SIZES) await layout(browser, s)
 if (!only || only === 'episodes') await episodes(browser)
+if (!only || only === 'rhythm') await rhythm(browser)
 if (!only || only === 'fit') await fit(browser)
 await browser.close()
 
-// one pass in WebKit too, at a phone and a desktop size: does it start, paint and fit?
+// one pass in WebKit too, at a desktop and a phone size: does it start, fill the window and paint?
 if (!only || only === 'webkit') {
   console.log('\nWebKit (Safari engine)')
   try {
@@ -395,16 +519,16 @@ if (!only || only === 'webkit') {
         j.seek('paint', 'body')
         j.advance(3)
         const d = document.documentElement
-        const t = document.getElementById('tube').getBoundingClientRect()
-        return { scroll: d.scrollHeight <= innerHeight && d.scrollWidth <= innerWidth, ratio: t.width / t.height, v: j.painter.version, kind: j.show.state.label, panelB: document.querySelector('.panel').getBoundingClientRect().bottom, vh: innerHeight }
+        const g = document.getElementById('gl').getBoundingClientRect()
+        return { scroll: d.scrollHeight <= innerHeight && d.scrollWidth <= innerWidth, fills: Math.abs(g.width - innerWidth) < 1 && Math.abs(g.height - innerHeight) < 1, v: j.painter.version, kind: j.show.state.label, split: j.stage.split }
       })
       ok(r.scroll, name, 'page scrolls')
-      ok(Math.abs(r.ratio - 4 / 3) < 0.012, name, `picture is not 4:3 (${r.ratio.toFixed(3)})`)
+      ok(r.fills, name, 'the picture does not fill the window')
       ok(r.v > 50 && r.kind === 'body', name, 'not painting')
-      ok(r.panelB <= r.vh + 0.5, name, 'panel runs off the bottom')
+      ok(r.split === w / h < 0.8, name, 'wrong kind of picture for this shape of window')
       await page.screenshot({ path: `${OUT}/${name}.png` })
       ok(errors.length === 0, name, `errors: ${[...new Set(errors)].join(' | ')}`)
-      console.log(`  ${name}: ok=${r.scroll} ratio=${r.ratio.toFixed(3)} painting=${r.kind}`)
+      console.log(`  ${name}: fills=${r.fills} painting=${r.kind} ${r.split ? 'two-part' : 'single'}`)
       await ctx.close()
     }
     await wk.close()

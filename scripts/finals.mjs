@@ -9,7 +9,7 @@ const errors = []
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
 const shots = []
 for (const ep of eps) {
-  await page.goto(`${process.env.BASE || 'http://127.0.0.1:5191'}/?${ep.includes('=') ? ep : 'ep=' + ep}`, { waitUntil: 'load' })
+  await page.goto(`${process.env.BASE || 'http://127.0.0.1:5191'}/?${ep.includes("=") ? ep : "ep=" + ep}&mute`, { waitUntil: 'load' })
   await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready, null, { timeout: 30000 })
   const info = await page.evaluate(() => {
     const j = window.__jop

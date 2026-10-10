@@ -25,8 +25,8 @@ const SPLIT_BELOW = 0.8 // windows narrower than this (width / height) get the t
 // c: what to look at. from: which way the camera sits from it. box: what must fit, [wide, high].
 // `on: 'canvas'` gives c and from in the canvas's own axes.
 const SHOTS = {
-  wide: { c: [-0.12, 0.84, 0], from: [0, 0.035, 1], box: [2.75, 1.85], fov: 24, push: 0.003 },
-  host: { c: [-0.44, 0.86, 0], from: [0, 0.035, 1], box: [1.95, 1.85], fov: 24, push: 0.003 },
+  wide: { c: [-0.12, 0.86, 0], from: [0, 0.035, 1], box: [3.05, 2.08], fov: 24, push: 0.003 },
+  host: { c: [-0.44, 0.88, 0], from: [0, 0.035, 1], box: [2.2, 2.08], fov: 24, push: 0.003 },
   // the canvas sits high in the frame, which leaves the bottom of the screen for the captions
   canvas: { on: 'canvas', c: [0.02, -0.062, 0], from: [0.05, 0, 1], box: [1.0, 0.84], fov: 30, push: 0.003, close: true },
   // from the easel's side: his face while he works, the canvas at an angle
@@ -272,7 +272,7 @@ export class Stage {
     return { mesh, g, pos, nor, SEG, RAD }
   }
 
-  bendArm(arm, a, b, sag, bow) {
+  bendArm(arm, a, b, sag, bow, thin = 1) {
     const { pos, nor, SEG, RAD } = arm
     const mid = a.clone().add(b).multiplyScalar(0.5)
     const len = a.distanceTo(b)
@@ -292,7 +292,7 @@ export class Stage {
       n.normalize()
       bi.crossVectors(t3, n)
       ref = n.clone()
-      const rad = lerp(0.082, 0.062, t)
+      const rad = lerp(0.082, 0.062, t) * thin
       for (let j = 0; j < RAD; j++) {
         const ang = (j / RAD) * Math.PI * 2
         const cs = Math.cos(ang)
@@ -491,9 +491,14 @@ export class Stage {
     const s = SHOTS[shot]
     const tip = this.painter.tip
     if (s.close && this.mode === 'paint') {
-      const from = this.canvasPoint(tip.u - 0.34, 1.5, 0.42)
-      this.bendArm(this.armL, from, this.hl, 0.04, this.cn.clone().multiplyScalar(0.05))
-    } else if (s.palette) {
+      // slimmer, and kept near the canvas, so it hides as little of the painting as a hand would
+      const from = this.canvasPoint(tip.u - 0.3, 1.55, 0.26)
+      this.bendArm(this.armL, from, this.hl, 0.04, this.cn.clone().multiplyScalar(0.04), 0.74)
+      this.handL.scale.setScalar(0.82)
+      return
+    }
+    this.handL.scale.setScalar(1)
+    if (s.palette) {
       // seen from above the palette, his own arm would be in the way: bring it in from the corner
       const right = V(1, 0, 0).applyQuaternion(this.camera.quaternion)
       const down = V(0, -1, 0).applyQuaternion(this.camera.quaternion)
@@ -537,30 +542,21 @@ export class Stage {
     const r = this.renderer
     if (this.ready && this.rt) {
       const { width: W, height: H } = this.rt
-      r.setRenderTarget(this.rt)
-      if (this.split) {
-        const top = Math.round(H * this.topShare)
-        this.rt.scissorTest = true
-        // the canvas, on top
-        this.rt.viewport.set(0, H - top, W, top)
-        this.rt.scissor.set(0, H - top, W, top)
-        this.frame('top', W / top)
-        this.poseArm('top')
-        r.render(this.scene, this.camera)
-        // Cobb, underneath
-        const shot = SHOTS[this.shot].palette ? 'palette' : 'under'
-        this.rt.viewport.set(0, 0, W, H - top)
-        this.rt.scissor.set(0, 0, W, H - top)
-        this.frame(shot, W / (H - top))
+      // one part of the picture: the renderer reads the target's viewport when the target is set
+      const part = (shot, x, y, w, h) => {
+        this.rt.viewport.set(x, y, w, h)
+        this.rt.scissor.set(x, y, w, h)
+        r.setRenderTarget(this.rt)
+        this.frame(shot, w / h)
         this.poseArm(shot)
         r.render(this.scene, this.camera)
-      } else {
-        this.rt.scissorTest = false
-        this.rt.viewport.set(0, 0, W, H)
-        this.frame(this.shot, W / H)
-        this.poseArm(this.shot)
-        r.render(this.scene, this.camera)
       }
+      this.rt.scissorTest = this.split
+      if (this.split) {
+        const top = Math.round(H * this.topShare)
+        part('top', 0, H - top, W, top) // the canvas
+        part(SHOTS[this.shot].palette ? 'palette' : 'under', 0, 0, W, H - top) // Cobb
+      } else part(this.shot, 0, 0, W, H)
       r.setRenderTarget(null)
     }
     r.render(this.postScene, this.postCam)

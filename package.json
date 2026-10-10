@@ -3,14 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "The Joy of Pebbling: a Pebble with an afro paints other Pebbles, live, on a wood-panel television. Fan-made parody.",
+  "description": "The Joy of Pebbling: a Pebble with an afro paints other Pebbles, live. Fan-made parody.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "model": "/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python blender/build_set.py -- public/models/set.glb",
-    "assets": "python3 scripts/assets.py",
-    "qa": "node scripts/qa.mjs"
+    "qa": "node scripts/qa.mjs",
+    "voice": "node scripts/voice.mjs",
+    "sfx": "node scripts/sfx.mjs",
+    "qa:sound": "node scripts/qa-sound.mjs"
   },
   "dependencies": {
     "@fontsource/caprasimo": "^5.2.5",

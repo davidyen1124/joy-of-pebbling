@@ -1,13 +1,21 @@
 // Everything Cobb Moss says. He is gentle, he is sincere, and he has only ever known rocks.
-// {job} {name} {color} {kind} {hair} {paint} {prop} are filled in per episode.
+//
+// Every line is recorded once, by a real voice, before the site is built (scripts/voice.mjs). So the
+// set of lines has to be finite: a line may have one blank in it, never two, and each blank has a short
+// list of things that can fill it ({job} twenty, {say} fifteen colours, {kind} eight, {name} forty-seven).
+// lines.js lists every sentence this file can produce.
 
 export const GREET = [
-  ['Hi. Welcome back. I’m certainly glad you could join me today.', 'I thought today we’d paint a happy little {job}.'],
-  ['Hello. I’m Cobb Moss, and for the next little while, nothing bad is going to happen.', 'Today: a {color} pebble. Who is also a {job}.'],
-  ['Welcome back. Is it that time already? Good.', 'I have a real treat for you today. A {job}. And he’s a pebble.'],
-  ['Hi. Glad you’re here. I’ve been standing at this easel since Tuesday.', 'Let’s paint {name}. {name} is a {job}.'],
-  ['Hello again. Get your brushes ready, and keep your expectations low and gentle.', 'Today, {kind}. With {hair}. You’ll see.'],
-  ['Hi there. Come on in. Mind the easel.', 'Today we’re painting {name}, the {job}. I’ve been looking forward to this one.'],
+  'Hi. Welcome back. I’m certainly glad you could join me today.',
+  'Hello. I’m Cobb Moss, and for the next little while, nothing bad is going to happen.',
+  'Welcome back. Is it that time already? Good.',
+  'Hi. Glad you’re here. I’ve been standing at this easel since Tuesday.',
+  'Hello again. Get your brushes ready, and keep your expectations low and gentle.',
+  'Hi there. Come on in. Mind the easel.',
+]
+export const GREET_JOB = [
+  'I thought today we’d paint a happy little {job}.',
+  'I have a real treat for you today. A {job}. And he’s a pebble.',
 ]
 
 export const PRIMED = {
@@ -50,10 +58,11 @@ export const BAND = {
   desert: [['Desert floor. Warm and dry. Rocks do very well out here.', 'Nobody waters us. We’re fine.']],
 }
 
+// three lines each: washing, the beating (which happens as he finishes the second), and afterwards
 export const WASH = [
-  ['Now we wash the brush...', '...and just knock the gravel out of it. (heh heh)', 'That’s the fun part.'],
-  ['Clean the brush. Shake it off...', '...and beat the sediment right out of it.', 'I do this at home. The walls are a disaster.'],
-  ['Time to wash the brush.', 'And then you just... (whack whack whack)', 'It’s the only violence on this programme.'],
+  ['Now we wash the brush...', '...and just knock the gravel out of it.', '(heh heh) That’s the fun part.'],
+  ['Clean the brush. Shake it off...', '...and beat the sediment right out of it.', '(heh heh) I do this at home. The walls are a disaster.'],
+  ['Time to wash the brush.', 'And then you just...', '(heh heh) It’s the only violence on this programme.'],
 ]
 
 export const ENTER = [
@@ -67,11 +76,6 @@ export const STEP = {
   shadow: ['First, a little shadow. So he knows where he’s standing.', 'Start with his shadow. The shadow always arrives first. It’s very keen.'],
   cape: ['A big red cape first, because it goes behind. Think ahead. I rarely do.'],
   feet: ['Two little feet. So he can leave whenever he wants. He won’t.', 'Feet. Pebbles have feet. Please don’t write in.'],
-  body: [
-    ['Take some {say}. Load the brush full.', 'Just a happy little blob. He’s {kind}.'],
-    ['{say}. Drop him right in, top to bottom.', 'This one’s {kind}. Yours can be any shape you like.'],
-    ['A big brush, and {say}.', 'There’s no wrong way to make a pebble. The river’s been guessing for years.'],
-  ],
   shade: [
     'A little dark down this side. Every pebble has a shady side. We don’t talk about it.',
     'A shadow side, and a little light on top. Now he’s round. A second ago he was a sticker.',
@@ -89,8 +93,11 @@ export const STEP = {
     'And the eyes. This is where he wakes up. ...There he is.',
     'Two eyes. Close together. He’s not suspicious, he’s just small.',
   ],
-  prop: ['And he’ll need {prop}.', 'Every {job} needs {prop}.', 'Give him {prop}. Careful, now. No fingers.'],
 }
+export const BODY_COLOR = ['Take some {say}. Load the brush full.', '{say}. Drop him right in, top to bottom.', 'A big brush, and {say}.']
+export const BODY_KIND = ['Just a happy little blob. He’s {kind}.', 'This one’s {kind}. Yours can be any shape you like.']
+export const BODY_ANY = ['There’s no wrong way to make a pebble. The river’s been guessing for years.']
+export const PROP = ['And he’ll need {prop}.', 'Give him {prop}. Careful, now. No fingers.']
 
 export const HAT = {
   firefighter: 'A helmet. Red. So the fire knows who’s in charge.',
@@ -134,17 +141,15 @@ export const FRIEND = [
   ['You know me. I think everybody needs a friend.', 'Even a pebble. There. Now there are two.'],
   ['He looks a little lonely out there.', 'So let’s give him a friend. It costs nothing. It’s paint.'],
 ]
-export const FRIEND_AFTER_ACCIDENT = [
-  ['Remember our happy little accident?', 'He’s a pebble now. Everybody needs a friend.'],
-]
+export const FRIEND_AFTER_ACCIDENT = [['Remember our happy little accident?', 'He’s a pebble now. Everybody needs a friend.']]
 
 export const SIGN = ['I’ll sign this one. Right in the corner. In red.', 'Sign it, so they know who to blame.', 'And a signature. Moss. That’s me.']
 
-export const OUTRO = [
-  ['And I think we’ll call that one finished. That’s {name}.', 'From all of us here: happy pebbling, and rock bless, my friend.'],
-  ['There. {name}, the {job}. Isn’t that something.', 'Until next time. Happy pebbling, and rock bless.'],
-  ['That’s our painting. I hope you’ll try one. All you need is a pebble, and a dream.', 'Happy pebbling, and rock bless, my friend.'],
-  ['I think {name} is going to be very happy there.', 'Thank you for watching. Happy pebbling, and rock bless.'],
+export const OUTRO_NAME = ['And I think we’ll call that one finished. That’s {name}.']
+export const OUTRO_BYE = [
+  'From all of us here: happy pebbling, and rock bless, my friend.',
+  'Until next time. Happy pebbling, and rock bless.',
+  'Thank you for watching. Happy pebbling, and rock bless, my friend.',
 ]
 
 export const CREDITS = [
@@ -154,8 +159,8 @@ export const CREDITS = [
   [['', ['a PEBBLEVISION 49 production', 'Gravel Pit, Indiana', 'copyright 1987 pbbl']]],
 ]
 
-// fills the blanks, then tidies: "a astronaut" becomes "an astronaut", and sentences start with a capital
-export const fill = (text, ctx) =>
+// fills the blank, then tidies: "a astronaut" becomes "an astronaut", and sentences start with a capital
+export const fill = (text, ctx = {}) =>
   text
     .replace(/\{(\w+)\}/g, (_, k) => ctx[k] ?? k)
     .replace(/\b([Aa]) (?=[aeiouAEIOU])(?!uni|use|one|eu)/g, '$1n ')

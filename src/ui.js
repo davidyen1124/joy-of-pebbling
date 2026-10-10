@@ -1,13 +1,12 @@
-// Everything on the page that is not the 3D picture: the words the station lays over it (captions,
-// the yellow colour names, credits), the tape label, and the read-out in the corner.
+// The words the station lays over the picture: captions, the yellow colour names, the title card,
+// the credits, and the tape machine's own read-out in the corners.
 const $ = (id) => document.getElementById(id)
 
 export class UI {
   constructor() {
     this.el = {
       title: $('titlecard'), slate: $('slate'), credits: $('credits'), lower: $('lower'), color: $('colorname'),
-      cc: $('cc'), ccBox: $('ccboxText'), osdL: $('osdL'), osdR: $('osdR'),
-      epNo: $('epNo'), epTitle: $('epTitle'), epMeta: $('epMeta'),
+      cc: $('cc'), osdL: $('osdL'), osdR: $('osdR'),
     }
     this.ccSpan = document.createElement('span')
     this.el.cc.append(this.ccSpan)
@@ -18,10 +17,6 @@ export class UI {
   }
 
   episode(ep) {
-    const no = String(ep.no).padStart(4, '0')
-    this.el.epNo.textContent = `EP. ${no}`
-    this.el.epTitle.textContent = ep.title
-    this.el.epMeta.textContent = `${ep.blurb} · ${ep.plate.title}`
     this.el.slate.innerHTML = ''
     const a = document.createElement('span')
     a.textContent = `“${ep.title}”`
@@ -37,8 +32,7 @@ export class UI {
 
   caption(text, dur) {
     this.ccSpan.textContent = text
-    this.el.ccBox.textContent = text
-    this.t.cc = dur + 0.5
+    this.t.cc = dur + 0.25
   }
 
   colorName(text, dur) {
@@ -73,7 +67,7 @@ export class UI {
         g.append(r)
       }
       const n = document.createElement('div')
-      n.className = role ? 'names' : 'names'
+      n.className = 'names'
       names.forEach((x, k) => {
         if (k) n.append(document.createElement('br'))
         n.append(x)
@@ -101,10 +95,7 @@ export class UI {
   tick(real, dt, clock) {
     const t = this.t
     if (t.osd !== Infinity && t.osd > 0 && (t.osd -= real) <= 0) this.el.osdL.textContent = ''
-    if (t.cc > 0 && (t.cc -= dt) <= 0) {
-      this.ccSpan.textContent = ''
-      this.el.ccBox.innerHTML = '&nbsp;'
-    }
+    if (t.cc > 0 && (t.cc -= dt) <= 0) this.ccSpan.textContent = ''
     if (t.color > 0 && (t.color -= dt) <= 0) this.el.color.hidden = true
     if (t.lower > 0 && (t.lower -= dt) <= 0) this.el.lower.hidden = true
     const s = Math.floor(clock)

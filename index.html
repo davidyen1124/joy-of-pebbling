@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>The Joy of Pebbling, with Cobb Moss</title>
-    <meta name="description" content="A Pebble with an afro paints happy little Pebbles, live, on a wood-panel television. Every episode is a different Pebble, with a different job and a different haircut. A fan-made parody." />
-    <meta name="theme-color" content="#2a1a10" />
+    <meta name="description" content="A Pebble with an afro paints happy little Pebbles, live. Every episode is a different Pebble, with a different job and a different haircut. A fan-made parody." />
+    <meta name="theme-color" content="#030304" />
     <meta property="og:title" content="The Joy of Pebbling, with Cobb Moss" />
     <meta property="og:description" content="A Pebble with an afro paints happy little Pebbles, live. We don’t make mistakes, just happy little sediments." />
     <meta property="og:type" content="website" />
@@ -14,58 +14,45 @@
     <link rel="icon" href="/img/icon.png" />
     <link rel="apple-touch-icon" href="/img/icon.png" />
     <link rel="preload" href="/img/title.jpg" as="image" />
+    <style>
+      /* before the stylesheet arrives: black, and no controls */
+      html { background: #030304; }
+      .bar, .mail:not([open]) { opacity: 0; visibility: hidden; }
+    </style>
   </head>
   <body>
-    <main class="set" id="set">
-      <section class="screen">
-        <div class="bezel">
-          <div class="tube" id="tube">
-            <canvas id="gl" aria-label="Cobb Moss, a blue Pebble with an afro, painting at his easel"></canvas>
-            <div class="ov">
-              <div class="titlecard" id="titlecard" hidden>
-                <div class="tc-title">
-                  <span class="tc-the">The Joy of</span>
-                  <span class="tc-main">Pebbling</span>
-                  <span class="tc-with">with Cobb Moss</span>
-                </div>
-                <div class="tc-slate" id="slate"></div>
-              </div>
-              <div class="credits" id="credits" hidden></div>
-              <div class="lower" id="lower" hidden><b></b><span></span></div>
-              <div class="colorname" id="colorname" hidden></div>
-              <div class="cc" id="cc" aria-hidden="true"></div>
-              <div class="osd osd-l" id="osdL"></div>
-              <div class="osd osd-r" id="osdR"></div>
-            </div>
-            <div class="glass"></div>
+    <main class="screen" id="screen">
+      <canvas id="gl" aria-label="Cobb Moss, a blue Pebble with an afro, painting at his easel"></canvas>
+      <div class="ov">
+        <div class="titlecard" id="titlecard" hidden>
+          <div class="tc-title">
+            <span class="tc-the">The Joy of</span>
+            <span class="tc-main">Pebbling</span>
+            <span class="tc-with">with Cobb Moss</span>
           </div>
+          <div class="tc-slate" id="slate"></div>
         </div>
-      </section>
+        <div class="credits" id="credits" hidden></div>
+        <div class="lower" id="lower" hidden><b></b><span></span></div>
+        <div class="colorname" id="colorname" hidden></div>
+        <div class="cc" id="cc" role="status" aria-live="off"></div>
+        <div class="osd osd-l" id="osdL"></div>
+        <div class="osd osd-r" id="osdR"></div>
+      </div>
 
-      <aside class="panel">
-        <div class="brand"><b>PEBBLEVISION</b><span>solid state &middot; colour</span></div>
+      <button class="soundcue" id="soundcue" hidden>&#9834; <span id="soundcueText">click for sound</span></button>
 
-        <div class="ccbox" id="ccbox" role="status" aria-live="off"><span class="cc-tag">CC</span><p id="ccboxText">&nbsp;</p></div>
-
-        <div class="tape" id="tape">
-          <div class="tape-head"><span>THE JOY OF PEBBLING</span><span id="epNo">EP. &mdash;</span></div>
-          <div class="tape-title" id="epTitle">warming up the tube&hellip;</div>
-          <div class="tape-meta" id="epMeta">&nbsp;</div>
+      <nav class="bar" id="bar" aria-label="Controls">
+        <div class="bar-keys">
+          <button id="bPause" aria-pressed="false"><i>&#10074;&#10074;</i> Pause</button>
+          <button id="bSpeed" aria-label="Speed"><i>&#9654;&#9654;</i> <span class="wide">Speed </span><span id="speedText">1&times;</span></button>
+          <button id="bNext"><i>&#9654;&#10074;</i> Next<span class="wide"> Pebble</span></button>
+          <button id="bSound" aria-pressed="false"><i>&#9834;</i> Sound<span class="wide" id="soundText"> off</span></button>
+          <button id="bMail"><i>&#9993;</i> Request</button>
+          <button id="bSave"><i>&#8681;</i> Keep<span class="wide"> it</span></button>
         </div>
-
-        <div class="keys">
-          <button class="key" id="bPause" aria-pressed="false"><i>&#10074;&#10074;</i><span>Pause</span></button>
-          <button class="key" id="bSpeed"><i>&#9654;&#9654;</i><span id="speedText">Speed 1&times;</span></button>
-          <button class="key key-hot" id="bNext"><i>&#9654;&#10074;</i><span>Next Pebble</span></button>
-          <button class="key" id="bSound" aria-pressed="false"><i class="led"></i><span>Sound</span></button>
-          <button class="key" id="bVoice" aria-pressed="false"><i class="led"></i><span>Voice</span></button>
-          <button class="key" id="bSave"><i>&#8681;</i><span>Keep It</span></button>
-          <button class="key key-wide" id="bMail"><i>&#9993;</i><span>Viewer Mail: request a Pebble</span></button>
-        </div>
-
-        <div class="grille" aria-hidden="true"></div>
-        <p class="fine">A fan-made parody. Not affiliated with Bob Ross Inc., PBS or Turnstone. Landscapes painted with Codex imagegen; Cobb built in Blender.</p>
-      </aside>
+        <p class="fine">A fan-made parody. Not affiliated with Bob Ross Inc., PBS or Turnstone.</p>
+      </nav>
     </main>
 
     <dialog class="mail" id="mail" aria-labelledby="mailTitle">
@@ -86,9 +73,8 @@
           </div>
         </div>
         <footer>
-          <p class="mail-fine">A fan-made parody. Not affiliated with Bob Ross Inc., PBS or Turnstone.</p>
-          <button type="button" class="key" id="mailRandom"><span>Surprise me</span></button>
-          <button type="submit" class="key key-hot" value="send" id="mailSend"><span>Send it to Cobb</span></button>
+          <button type="button" class="key" id="mailRandom">Surprise me</button>
+          <button type="submit" class="key key-hot" value="send" id="mailSend">Send it to Cobb</button>
         </footer>
       </form>
     </dialog>

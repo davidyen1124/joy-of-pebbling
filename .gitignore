@@ -6,3 +6,6 @@ logs
 qa/*.png
 qa/shots
 blender/__pycache__
+.env
+.env.*
+qa/audio

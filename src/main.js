@@ -14,6 +14,7 @@ import { setupMail } from './mail.js'
 const $ = (id) => document.getElementById(id)
 const q = new URLSearchParams(location.search)
 const small = Math.min(window.innerWidth, window.innerHeight) < 560
+const screen = $('screen')
 
 const painter = new Painter(small ? 576 : 768)
 const stage = new Stage($('gl'), painter)
@@ -35,8 +36,17 @@ const remember = (no, req = {}) => {
   history.replaceState(null, '', `${location.pathname}?${p}`)
 }
 let request = readRequest()
-const firstNo = Math.max(1, parseInt(q.get('ep'), 10) || 1 + Math.floor(Math.random() * 9998))
+const anyNo = () => 1 + Math.floor(Math.random() * 9998)
+let firstNo = Math.max(0, parseInt(q.get('ep'), 10) || 0) // 0: let the first voiced episode open the programme
 let requestFor = firstNo
+// What comes next. With the sound on it is the next episode Cobb has recorded, round and round;
+// with it off there is nothing to hear, so it is simply another Pebble.
+const nextNo = (no) => {
+  const f = audio.featured
+  if (audio.on && f.length) return f[(f.indexOf(no) + 1) % f.length]
+  return f.includes(no) ? anyNo() : no + 1
+}
+show.nextNo = nextNo
 const play = (no, req = {}) => {
   request = req
   requestFor = no
@@ -44,30 +54,83 @@ const play = (no, req = {}) => {
   show.skip({ no, ...req })
 }
 
-// ── controls ────────────────────────────────────────────────────────────────
+// ── sound. A browser will not let a page make a noise until it has been touched, so the picture
+//    asks: the first click, tap or key anywhere turns the sound on. ────────────────────────────────
+const store = {
+  get: (k) => {
+    try {
+      return localStorage.getItem(k)
+    } catch {
+      return null
+    }
+  },
+  set: (k, v) => {
+    try {
+      localStorage.setItem(k, v)
+    } catch {}
+  },
+}
+let wantSound = store.get('jop-sound') !== 'off' && !q.has('mute')
+const showSound = () => {
+  $('bSound').setAttribute('aria-pressed', String(audio.on))
+  $('soundText').textContent = audio.on ? ' on' : ' off'
+  $('soundcue').hidden = audio.on || !wantSound
+  screen.classList.toggle('cue', !$('soundcue').hidden)
+}
+const setSound = (on) => {
+  audio.enable(on)
+  wantSound = on
+  store.set('jop-sound', on ? 'on' : 'off')
+  if (on && show.speaks) audio.preload(show.beats.flatMap((b) => b.cues).map((c) => c.id))
+  showSound()
+}
+$('soundcueText').textContent = matchMedia('(pointer: coarse)').matches ? 'tap for sound' : 'click for sound'
+/** true if this touch was spent on turning the sound on */
+const firstTouch = () => {
+  if (audio.on || !wantSound) return false
+  setSound(true)
+  return true
+}
+
+// ── the strip of controls: comes when the mouse moves or the screen is tapped, goes after a moment ──
+let barTimer = 0
+const showBar = (ms = 3200) => {
+  screen.classList.add('on')
+  clearTimeout(barTimer)
+  barTimer = setTimeout(() => {
+    if (!$('bar').matches(':hover') && !$('bar').contains(document.activeElement)) screen.classList.remove('on')
+    else showBar(1500)
+  }, ms)
+}
+const hideBar = () => {
+  clearTimeout(barTimer)
+  screen.classList.remove('on')
+  if ($('bar').contains(document.activeElement)) document.activeElement.blur()
+}
+screen.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse') showBar()
+})
+$('bar').addEventListener('focusin', () => showBar())
+$('bar').addEventListener('click', () => showBar())
+
 const SPEEDS = [1, 2, 4, 8]
 const setSpeed = (x) => {
   show.setSpeed(x)
-  $('speedText').textContent = `Speed ${x}×`
+  $('speedText').textContent = `${x}\u00D7`
 }
-$('bSpeed').addEventListener('click', () => setSpeed(SPEEDS[(SPEEDS.indexOf(show.speed) + 1) % SPEEDS.length]))
 const pause = () => {
   show.togglePause()
   $('bPause').setAttribute('aria-pressed', String(show.paused))
 }
+const next = () => play(nextNo(show.ep?.no ?? firstNo))
 $('bPause').addEventListener('click', pause)
-const next = () => play((show.ep?.no ?? firstNo) + 1)
+$('bSpeed').addEventListener('click', () => setSpeed(SPEEDS[(SPEEDS.indexOf(show.speed) + 1) % SPEEDS.length]))
 $('bNext').addEventListener('click', next)
-const sound = () => {
-  audio.enable(!audio.on)
-  $('bSound').setAttribute('aria-pressed', String(audio.on))
-}
-$('bSound').addEventListener('click', sound)
-$('bVoice').addEventListener('click', () => {
-  const on = audio.setVoice(!audio.voice)
-  $('bVoice').setAttribute('aria-pressed', String(on))
+$('bSound').addEventListener('click', () => setSound(!audio.on))
+$('soundcue').addEventListener('click', (e) => {
+  e.stopPropagation()
+  setSound(true)
 })
-if (!('speechSynthesis' in window)) $('bVoice').disabled = true
 $('bSave').addEventListener('click', () => {
   painter.canvas.toBlob((blob) => {
     if (!blob) return
@@ -78,17 +141,31 @@ $('bSave').addEventListener('click', () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000)
   }, 'image/png')
 })
-const mail = setupMail((choice) => play(1 + Math.floor(Math.random() * 9998), choice))
+const mail = setupMail((choice) => play(anyNo(), choice))
 $('bMail').addEventListener('click', () => mail.open(show.ep?.spec))
+
+// the picture itself: a mouse click pauses, as on any video; a finger brings the controls up or sends them away
+screen.addEventListener('pointerup', (e) => {
+  if (e.target.closest('.bar, .soundcue, dialog')) return
+  if (firstTouch()) return showBar()
+  if (e.pointerType === 'mouse') {
+    if (e.button === 0) pause()
+    showBar()
+  } else if (screen.classList.contains('on')) hideBar()
+  else showBar(4200)
+})
 
 window.addEventListener('keydown', (e) => {
   if (mail.isOpen || e.metaKey || e.ctrlKey || e.altKey) return
+  if (e.key !== 'Tab' && e.key !== 'Shift') firstTouch()
   if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return
   if (e.key === ' ' || e.key === 'k') pause()
   else if (e.key === 'ArrowRight' || e.key === 'n') next()
   else if (e.key === 'f') $('bSpeed').click()
-  else if (e.key === 'm') sound()
+  else if (e.key === 'm') setSound(!audio.on)
+  else if (e.key === 'Escape') return hideBar()
   else return
+  showBar(1800)
   e.preventDefault()
 })
 
@@ -102,8 +179,10 @@ const follow = () => {
 }
 
 // ── go ──────────────────────────────────────────────────────────────────────
-new ResizeObserver(() => stage.resize()).observe($('tube'))
+new ResizeObserver(() => stage.resize()).observe(screen)
+window.addEventListener('orientationchange', () => setTimeout(() => stage.resize(), 200))
 stage.resize()
+showSound()
 
 let last = performance.now()
 function frame(now) {
@@ -119,6 +198,8 @@ async function boot() {
   const layout = await fetch('/models/layout.json').then((r) => r.json())
   await stage.load('/models/set.glb', layout)
   if (q.get('speed')) setSpeed(Math.max(1, Math.min(8, +q.get('speed') || 1)))
+  await audio.ready
+  if (!firstNo) firstNo = requestFor = audio.featured[0] ?? anyNo()
   await show.play(firstNo, request)
   remember(firstNo, request)
 }
@@ -129,12 +210,12 @@ boot().catch((err) => {
 
 // for the QA scripts: run the programme forward without waiting for it
 window.__jop = {
-  show, stage, painter, ui, audio,
+  show, stage, painter, ui, audio, nextNo,
   advance(seconds, step = 1 / 30) {
     for (let t = 0; t < seconds; t += step) show.update(step / show.speed)
   },
   /** run until a beat of this kind (and label) begins; returns its index or -1 */
-  seek(kind, label, limit = 600) {
+  seek(kind, label, limit = 900) {
     const start = show.state.episodes
     for (let t = 0; t < limit; t += 1 / 30) {
       const s = show.state

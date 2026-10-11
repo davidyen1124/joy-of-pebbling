@@ -85,6 +85,12 @@ export class Audio {
   build() {
     const AC = window.AudioContext || window.webkitAudioContext
     if (!AC) return
+    // An iPhone with its ringer switch on silent stops whatever a page plays through Web Audio alone:
+    // Safari takes that for a game's noises. This is a programme, to be heard as a video is, and Safari
+    // will take the page's word for it if told before the sound is set up.
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback'
+    } catch {}
     const ctx = (this.ctx = new AC())
     this.master = ctx.createGain()
     this.master.gain.value = 0

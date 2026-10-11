@@ -515,6 +515,9 @@ try {
   await sleep(2000)
   let w2 = await state(wp)
   feature('It starts and runs in real time', !w2.held && w2.clock > 1.2 && w2.clock < 3.5, `${w.held ? 'after one click' : 'by itself'}: ${w2.clock.toFixed(1)}s in, sound ${w2.on ? 'on' : 'off'} (${w2.ctx})`)
+  // an iPhone's ringer switch silences a page unless the page has told Safari it is to be heard as a video is
+  const session = await wp.evaluate(() => navigator.audioSession?.type)
+  feature("An iPhone's silent switch is not obeyed", w2.on && w2.ctx === 'running' && session === 'playback', `Safari is told "${session}", sound ${w2.ctx}`)
   await wp.mouse.click(640, 520)
   await sleep(400)
   w = await state(wp)

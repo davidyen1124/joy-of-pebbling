@@ -49,7 +49,10 @@ tiny hat always goes on top of the hair, however tall the hair is.
 ## Sound
 
 There are three kinds of sound, all recorded, none synthesized in the page: Cobb's voice, the brush, and
-a theme. (When they can start is the browser's decision; see Starting, above.)
+a theme. (When they can start is the browser's decision; see Starting, above.) An iPhone with its ringer
+switch on silent plays them all the same: the page tells Safari it is a programme, to be heard as a video
+is, where a page that only uses Web Audio is otherwise taken for a game and hushed (`navigator.audioSession`
+in `src/audio.js`; Safari 16.4 and later).
 
 ### What the real programme sounds like
 

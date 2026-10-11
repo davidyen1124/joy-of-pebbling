@@ -1,5 +1,12 @@
 # The Joy of Pebbling, with Cobb Moss
 
+<p align="center">
+  <img src="docs/cobb-at-work.jpg" width="49%" alt="Cobb Moss, a blue Pebble with an enormous afro and a beard, palette in hand at his easel, a mountain lake on the canvas. The caption reads: NOW FOR THE REASON WE ALL CAME." />
+  <img src="docs/finished.jpg" width="49%" alt="The canvas close up: a blue Pebble in a straw hat with a sunflower, a small green Pebble beside it, and a red signature going on. The caption reads: AND A SIGNATURE. MOSS. THAT'S ME." />
+</p>
+
+> We don't make mistakes, just happy little sediments.
+
 A page that is one picture and nothing else. In it a blue [Turnstone](https://myturnstone.ai) Pebble with
 an enormous afro stands at an easel and paints, stroke by stroke, while you watch: first a landscape,
 then a happy little Pebble to live in it. Every episode is a different Pebble: a different kind, colour,

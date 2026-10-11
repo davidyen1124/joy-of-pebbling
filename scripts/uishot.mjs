@@ -9,7 +9,7 @@ for (const [name, w, h, dpr, touch] of [['desk', 1440, 900, 1, false], ['phone',
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
   page.on('console', (m) => { if (m.type() === 'error') console.log('console error:', m.text().slice(0, 160)) })
   const t0 = Date.now()
-  await page.goto(`${process.env.BASE || 'http://127.0.0.1:5191'}/`, { waitUntil: 'load' })
+  await page.goto(`${process.env.BASE || 'http://127.0.0.1:5191'}/`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready && !document.getElementById('titlecard').hidden)
   await page.evaluate(() => document.fonts.ready)
   await page.waitForTimeout(400)

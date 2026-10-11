@@ -62,7 +62,10 @@ async function open(browser, w, h, dpr, touch, query = 'ep=12') {
     // a built site has no recordings list until they are made, and no source modules at all
     if (r.status() >= 400 && !/\/(voice|sfx)\/manifest\.json|\/src\//.test(r.url())) errors.push(`${r.status()}: ${r.url()}`)
   })
-  await page.goto(`${BASE}/?${query}`, { waitUntil: 'load' })
+  // Nothing may be asked of the page until it has finished loading and has decided how to start: to
+  // the browser, a question from this script counts as the viewer touching the page, and a page that
+  // has been touched is allowed its sound. So wait for the network to fall quiet first.
+  await page.goto(`${BASE}/?${query}`, { waitUntil: 'networkidle', timeout: 60000 })
   await page.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.stage.ready, null, { timeout: 45000 })
   await page.evaluate(() => document.fonts.ready)
   return { ctx, page, errors }

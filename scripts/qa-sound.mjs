@@ -222,7 +222,8 @@ ok(r.peak > -40, 'no music on the title card')
   const blocked = await chromium.launch({ args: ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=document-user-activation-required'] })
   const p2 = await blocked.newPage({ viewport: { width: 1280, height: 800 } })
   p2.on('pageerror', (e) => errors.push(e.message))
-  await p2.goto(`${BASE}/`, { waitUntil: 'load' })
+  // no questions until it has loaded and decided how to start: a question from here counts as a touch
+  await p2.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 60000 })
   await p2.waitForFunction(() => window.__jop && window.__jop.show.ep && window.__jop.show.held && !document.getElementById('bPlay').hidden, null, { timeout: 45000 })
   // everything it will need is fetched while it waits
   const ready = await p2.waitForFunction(() => {

@@ -11,6 +11,7 @@ import { signature } from './painter.js'
 import { lineId, guessSeconds } from './lines.js'
 import * as S from './script.js'
 import { rng, clamp } from './rng.js'
+import { asset } from './asset.js'
 
 const LOAD = 0.85 // seconds at the palette before each part
 const GAP = 0.28 // a breath between lines
@@ -184,7 +185,7 @@ export class Show {
         img.decoding = 'async'
         img.onload = () => res(img)
         img.onerror = rej
-        img.src = `/plates/${id}.jpg`
+        img.src = asset(`/plates/${id}.jpg`)
       }))
     }
     return this.plates.get(id)

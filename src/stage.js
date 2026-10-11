@@ -231,15 +231,17 @@ export class Stage {
       })
     }
 
-    // the bucket of thinner he washes the brush in
-    this.bucket = get('bucket')
-    this.bucket.position.copy(BUCKET_POS)
-    this.bucket.rotation.y = 0.3
-    this.scene.add(this.bucket)
-    const under = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.38), new THREE.MeshBasicMaterial({ map: this.shadowTex, transparent: true, depthWrite: false }))
-    under.rotation.x = -Math.PI / 2
-    under.position.set(BUCKET_POS.x + 0.03, 0.003, BUCKET_POS.z + 0.01)
-    this.scene.add(under)
+    // the bucket of thinner he washes the brush in (an older studio file has none; the show goes on without)
+    this.bucket = get('bucket') || null
+    if (this.bucket) {
+      this.bucket.position.copy(BUCKET_POS)
+      this.bucket.rotation.y = 0.3
+      this.scene.add(this.bucket)
+      const under = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.38), new THREE.MeshBasicMaterial({ map: this.shadowTex, transparent: true, depthWrite: false }))
+      under.rotation.x = -Math.PI / 2
+      under.position.set(BUCKET_POS.x + 0.03, 0.003, BUCKET_POS.z + 0.01)
+      this.scene.add(under)
+    }
 
     // arms: rubbery tubes from shoulder to hand, rebuilt every frame
     const mat = new THREE.MeshStandardMaterial({ color: BLUE, roughness: 0.62 })
@@ -438,8 +440,9 @@ export class Stage {
       F = V(1, 0, 0)
     } else if (this.mode === 'wash') {
       // down into the bucket, scrubbing it round under the thinner
-      const b = this.bucket.position
-      P = V(b.x + Math.sin(t * 15) * 0.04, this.layout.bucket.liquid - 0.035 + Math.sin(t * 30) * 0.012, b.z + Math.cos(t * 15) * 0.03)
+      const b = BUCKET_POS
+      const level = this.layout.bucket?.liquid ?? 0.15
+      P = V(b.x + Math.sin(t * 15) * 0.04, level - 0.035 + Math.sin(t * 30) * 0.012, b.z + Math.cos(t * 15) * 0.03)
       A = V(-0.42, 0.86, 0.22).normalize()
       F = V(0, 0, 1)
     } else if (this.mode === 'beat') {

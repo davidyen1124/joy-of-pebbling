@@ -367,6 +367,7 @@ button {
 }
 .bar button:focus-visible,
 .play:focus-visible,
+.nosignal:focus-visible,
 .key:focus-visible,
 .chip:focus-visible,
 .x:focus-visible {
@@ -439,6 +440,45 @@ button {
   margin-left: 7%;
   filter: none;
 }
+/* it could not start: said in the middle of the screen, where it cannot be missed */
+.nosignal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  appearance: none;
+  border: 0;
+  background: none;
+  display: grid;
+  justify-items: center;
+  gap: 0.3em;
+  padding: 1em;
+  font-family: var(--osd);
+  font-size: clamp(30px, 9 * var(--u), 84px);
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f2fff2;
+  text-shadow:
+    0 0 0.3em rgba(150, 255, 190, 0.75),
+    0.07em 0.07em 0 rgba(0, 0, 0, 0.75);
+  cursor: pointer;
+}
+.nosignal b {
+  font-weight: 400;
+}
+.nosignal span {
+  background: #000;
+  padding: 0.1em 0.6em 0.16em;
+  font-size: 0.42em;
+  color: #fff;
+  text-shadow: none;
+}
+.screen.dead .bar,
+.screen.dead .osd {
+  display: none;
+}
+
 /* the word, as a caption */
 .play span {
   background: #000;

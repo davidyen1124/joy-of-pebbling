@@ -11,6 +11,7 @@ import { UI } from './ui.js'
 import { Audio } from './audio.js'
 import { setupMail } from './mail.js'
 import { drawIcons, icon } from './icons.js'
+import { asset } from './asset.js'
 
 const $ = (id) => document.getElementById(id)
 const q = new URLSearchParams(location.search)
@@ -84,8 +85,9 @@ const hold = (on) => {
   screen.classList.toggle('held', on)
   $('bPlay').hidden = !on
 }
+let ready = false // the first episode is loaded: until then there is nothing for a click or a key to act on
 const begin = () => {
-  if (!show.held) return
+  if (!show.held || !ready) return
   hold(false)
   setSound(true)
   ui.osd('PLAY', 2.5, 'play')
@@ -96,7 +98,7 @@ $('bPlay').addEventListener('click', begin)
 // ── the strip of controls: comes when the mouse moves or the screen is tapped, goes after a moment ──
 let barTimer = 0
 const showBar = (ms = 3200) => {
-  if (show.held) return
+  if (show.held || !ready) return
   screen.classList.add('on')
   clearTimeout(barTimer)
   barTimer = setTimeout(() => {
@@ -144,7 +146,7 @@ $('bMail').addEventListener('click', () => mail.open(show.ep?.spec))
 
 // the picture itself: a mouse click pauses, as on any video; a finger brings the controls up or sends them away
 screen.addEventListener('pointerup', (e) => {
-  if (e.target.closest('.bar, dialog')) return
+  if (!ready || e.target.closest('.bar, .nosignal, dialog')) return
   if (show.held) return begin()
   if (e.pointerType === 'mouse') {
     if (e.button === 0) pause()
@@ -154,7 +156,7 @@ screen.addEventListener('pointerup', (e) => {
 })
 
 window.addEventListener('keydown', (e) => {
-  if (mail.isOpen || e.metaKey || e.ctrlKey || e.altKey) return
+  if (!ready || mail.isOpen || e.metaKey || e.ctrlKey || e.altKey) return
   if (show.held) {
     if (['Tab', 'Shift', 'Escape'].includes(e.key)) return
     e.preventDefault()
@@ -183,19 +185,27 @@ stage.resize()
 showSound()
 
 let last = performance.now()
+let complained = ''
 function frame(now) {
+  requestAnimationFrame(frame) // first, so that one bad frame cannot stop the picture for good
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
-  show.update(dt)
-  follow()
-  requestAnimationFrame(frame)
+  try {
+    show.update(dt)
+    follow()
+  } catch (err) {
+    if (complained !== String(err)) console.error((complained = String(err)), err)
+  }
 }
 
 async function boot() {
   requestAnimationFrame(frame)
   show.held = true // nothing moves until it is known whether it can be heard
-  const layout = await fetch('/models/layout.json').then((r) => r.json())
-  await stage.load('/models/set.glb', layout)
+  const layout = await fetch(asset('/models/layout.json')).then((r) => {
+    if (!r.ok) throw new Error(`layout.json: ${r.status}`)
+    return r.json()
+  })
+  await stage.load(asset('/models/set.glb'), layout)
   if (q.get('speed')) setSpeed(Math.max(1, Math.min(8, +q.get('speed') || 1)))
   await audio.ready
   if (!firstNo) firstNo = audio.featured[0] ?? anyNo()
@@ -208,12 +218,17 @@ async function boot() {
   show.held = audio.wanted && !free
   await show.play(firstNo, linked)
   hold(show.held)
+  ready = true
 }
+// If it cannot start, say so where it will be seen, and offer the one thing that helps.
 boot().catch((err) => {
   console.error(err)
   hold(false)
-  ui.osd('NO SIGNAL', 0)
+  show.held = true
+  screen.classList.add('dead')
+  $('bRetry').hidden = false
 })
+$('bRetry').addEventListener('click', () => location.reload())
 
 // for the QA scripts: run the programme forward without waiting for it
 window.__jop = {

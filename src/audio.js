@@ -9,6 +9,8 @@
 //                   easel is a broadband crack over a low thump, a stroke is a bright scratchy hiss.
 //
 // Every stroke, tap and strike that is drawn is played: the painter and the stage call in as they happen.
+import { asset } from './asset.js'
+
 const VOICE = '/voice/'
 const SFX = '/sfx/'
 
@@ -33,7 +35,7 @@ export class Audio {
 
   async manifests() {
     const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-    const [v, s] = await Promise.all([get(`${VOICE}manifest.json`), get(`${SFX}manifest.json`)])
+    const [v, s] = await Promise.all([get(asset(`${VOICE}manifest.json`)), get(asset(`${SFX}manifest.json`))])
     if (v?.lines) this.voiceDur = v.lines
     if (Array.isArray(v?.featured)) this.featured = v.featured
     for (const [name, file] of Object.entries(s?.clips || {})) {
@@ -133,7 +135,7 @@ export class Audio {
   /** fetch the recordings for lines that are coming up (unless the viewer has turned the sound off) */
   preload(ids) {
     if (!this.ctx || !this.wanted) return
-    for (const id of ids) if (this.voiceDur[id] !== undefined) this.load(`${VOICE}${id}.mp3`)
+    for (const id of ids) if (this.voiceDur[id] !== undefined) this.load(asset(`${VOICE}${id}.mp3`))
   }
 
   // ── Cobb ──────────────────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ export class Audio {
     if (!this.on || !this.ctx || this.speed > 1.01 || this.voiceDur[id] === undefined) return false
     const asked = this.ctx.currentTime
     const token = (this.voiceToken = {})
-    this.load(`${VOICE}${id}.mp3`).then((buf) => {
+    this.load(asset(`${VOICE}${id}.mp3`)).then((buf) => {
       // if it arrives late, or he has moved on, let it go
       if (!buf || this.voiceToken !== token || !this.on || this.ctx.currentTime - asked > 1.0) return
       const src = this.ctx.createBufferSource()
@@ -166,7 +168,7 @@ export class Audio {
   /** fetch every effect once the sound is on, so that each is in hand before it is wanted */
   warm() {
     for (const names of Object.values(this.groups)) {
-      for (const name of names) if (!this.cache[name]) this.load(SFX + this.files[name]).then((buf) => buf && (this.cache[name] = buf))
+      for (const name of names) if (!this.cache[name]) this.load(asset(SFX + this.files[name])).then((buf) => buf && (this.cache[name] = buf))
     }
   }
 
@@ -211,7 +213,7 @@ export class Audio {
     }
     if (!wait) return false
     const asked = this.ctx.currentTime
-    this.load(SFX + this.files[names[i]]).then((b) => {
+    this.load(asset(SFX + this.files[names[i]])).then((b) => {
       if (!b) return
       this.cache[names[i]] = b
       if (this.on && (loop || this.ctx.currentTime - asked < 1.5)) start(b)

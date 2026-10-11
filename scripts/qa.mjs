@@ -4,7 +4,7 @@
 //
 //   BASE=http://127.0.0.1:5191 node scripts/qa.mjs          (dev server, or a preview of the build)
 //   BASE=https://… node scripts/qa.mjs                      (the deployed site)
-//   node scripts/qa.mjs layout|direct|episodes|rhythm|fit|webkit   (one part)
+//   node scripts/qa.mjs layout|direct|returning|episodes|rhythm|fit|webkit   (one part)
 //
 // Writes screenshots to qa/shots/ and exits 1 if anything failed.
 import { chromium, webkit } from 'playwright'
@@ -373,6 +373,115 @@ async function direct() {
   await free.close()
 }
 
+// Things a fresh, fast, well-behaved test browser never does. A returning visitor's browser has kept
+// yesterday's copies of the files it was told it could keep; networks fail; people click before a page
+// has finished loading. (The first of these once left the live page on static for good, with every
+// other check here passing.)
+async function returning(browser) {
+  console.log('\na returning visitor, and other misfortunes')
+  const visit = async (name, setup, go = 'networkidle') => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const page = await ctx.newPage()
+    const errors = []
+    const asked = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    page.on('console', (m) => {
+      if (m.type() === 'error' && !/Failed to load resource|ERR_FAILED/.test(m.text())) errors.push(m.text().slice(0, 200))
+    })
+    page.on('request', (r) => asked.push(r.url().replace(/^https?:\/\/[^/]+/, '')))
+    if (setup) await setup(page)
+    await page.goto(`${BASE}/`, { waitUntil: go, timeout: 60000 })
+    return { ctx, page, errors, asked }
+  }
+  const state = (page) => page.evaluate(() => {
+    const j = window.__jop
+    return { ready: j.stage.ready, ep: j.show.ep?.no ?? null, held: j.show.held, paused: j.show.paused, on: j.audio.on, clock: j.show.clock, kind: j.show.state.kind, bucket: !!j.stage.bucket, play: !document.getElementById('bPlay').hidden, retry: !document.getElementById('bRetry').hidden }
+  })
+
+  // 1. Anything a browser may keep must be asked for by an address that changes when the file does.
+  {
+    const { ctx, page, errors, asked } = await visit('stamped')
+    const kept = asked.filter((u) => /^\/(models|plates|sfx|voice)\//.test(u))
+    const bare = kept.filter((u) => !/\?v=[0-9a-f]{6,}/.test(u))
+    console.log(`  ${kept.length} files a browser may keep were asked for; ${bare.length} without a stamp in the address`)
+    ok(kept.length >= 10, 'returning', `expected the page to fetch its studio, pictures and sounds; it asked for ${kept.length}`)
+    ok(bare.length === 0, 'returning', `asked for by an address that never changes: ${bare.slice(0, 4).join(', ')}`)
+    const st = await state(page)
+    ok(st.ready && st.ep && st.bucket, 'returning', `a first visit did not load: ${JSON.stringify(st)}`)
+    ok(errors.length === 0, 'returning', `errors: ${errors.join(' | ')}`)
+    await ctx.close()
+  }
+
+  // 2. A studio file from before there was a bucket in it: the programme must still run.
+  {
+    const { ctx, page, errors } = await visit('old studio', async (page) => {
+      await page.route(/\/models\/set\.glb/, async (route) => {
+        const res = await route.fetch()
+        const body = Buffer.from((await res.body()).toString('latin1').replaceAll('bucket', 'bvcket'), 'latin1')
+        await route.fulfill({ response: res, body })
+      })
+      await page.route(/\/models\/layout\.json/, async (route) => {
+        const res = await route.fetch()
+        const json = await res.json()
+        delete json.bucket
+        await route.fulfill({ response: res, json })
+      })
+    })
+    const st = await state(page)
+    ok(st.ready && st.ep && !st.bucket, 'old studio', `with an older studio file the page did not load: ${JSON.stringify(st)}`)
+    const after = await page.evaluate(() => {
+      const j = window.__jop
+      j.seek('beat')
+      j.advance(j.show.beats[j.show.bi].dur + 1)
+      return { kind: j.show.state.kind, mode: j.stage.mode }
+    })
+    await page.waitForTimeout(400)
+    const c0 = await page.evaluate(() => window.__jop.show.clock)
+    await page.waitForTimeout(500)
+    ok((await page.evaluate(() => window.__jop.show.clock)) > c0, 'old studio', 'the picture stopped after he washed the brush')
+    ok(errors.length === 0, 'old studio', `errors: ${errors.join(' | ')}`)
+    console.log(`  with a studio file that has no bucket: loaded, washed the brush without one, carried on to "${after.kind}"`)
+    await ctx.close()
+  }
+
+  // 3. The studio cannot be fetched at all: it must say so, in the middle of the screen, with a way out.
+  {
+    const { ctx, page } = await visit('no studio', (page) => page.route(/\/models\/set\.glb/, (route) => route.abort()))
+    await page.waitForTimeout(600)
+    const st = await state(page)
+    const r = await page.evaluate(() => {
+      const b = document.getElementById('bRetry').getBoundingClientRect()
+      return { x: b.left, y: b.top, r: b.right, b: b.bottom, text: document.getElementById('bRetry').innerText.replace(/\s+/g, ' '), bar: getComputedStyle(document.getElementById('bar')).display }
+    })
+    ok(st.retry && r.x >= 0 && r.y >= 0 && r.r <= 1280 && r.b <= 800 && /no signal/i.test(r.text), 'no studio', `it does not say it has failed: ${JSON.stringify({ ...st, ...r })}`)
+    ok(!st.play && r.bar === 'none', 'no studio', 'controls or a play button are offered for a programme that is not there')
+    console.log(`  when the studio cannot be fetched: "${r.text}" in the middle of the screen`)
+    await ctx.close()
+  }
+
+  // 4. Clicks while it is still loading: nothing breaks, nothing is paused, and since the page has been
+  //    touched it is allowed its sound and simply starts.
+  {
+    const { ctx, page, errors } = await visit('early clicks', (page) => page.route(/\/models\/set\.glb/, async (route) => {
+      await new Promise((r) => setTimeout(r, 1600))
+      await route.continue()
+    }), 'domcontentloaded')
+    await page.waitForTimeout(350)
+    await page.mouse.click(640, 400)
+    await page.waitForTimeout(300)
+    await page.mouse.click(640, 400)
+    await page.keyboard.press('Space')
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(900)
+    const st = await state(page)
+    ok(errors.length === 0, 'early clicks', `errors: ${errors.join(' | ')}`)
+    ok(st.ready && st.ep && !st.paused, 'early clicks', `clicks during loading left it ${JSON.stringify(st)}`)
+    ok(!st.held && st.on && st.clock > 0.3, 'early clicks', `having been touched, it should have started with its sound: ${JSON.stringify(st)}`)
+    console.log(`  clicked twice and pressed space while loading: started by itself, sound ${st.on ? 'on' : 'off'}, ${st.clock.toFixed(1)}s in, not paused`)
+    await ctx.close()
+  }
+}
+
 async function episodes(browser) {
   console.log('\nwhole episodes, start to finish')
   const { ctx, page, errors } = await open(browser, 1280, 800, 1, false, 'ep=1&mute')
@@ -567,6 +676,7 @@ const only = process.argv[2]
 const browser = await chromium.launch({ args: ARGS })
 if (!only || only === 'layout') for (const s of SIZES) await layout(browser, s)
 if (!only || only === 'direct') await direct()
+if (!only || only === 'returning') await returning(browser)
 if (!only || only === 'episodes') await episodes(browser)
 if (!only || only === 'rhythm') await rhythm(browser)
 if (!only || only === 'fit') await fit(browser)

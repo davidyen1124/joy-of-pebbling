@@ -9,3 +9,4 @@ blender/__pycache__
 .env
 .env.*
 qa/audio
+qa/features

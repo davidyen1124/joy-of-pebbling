@@ -206,6 +206,33 @@ if (about.featured.length) {
   ok(heard > expected * 0.55 && heard < expected * 1.25 + 0.5, `expected to hear about ${expected.toFixed(1)}s of speech, heard ${heard.toFixed(1)}s`)
 } else console.log("\nCobb's voice: no episode has been recorded in full yet")
 
+// 4b. a requested episode, of a Pebble he has never painted: he must still be heard
+{
+  const req = { no: 7777, kind: 'tall', color: 'teal', job: 'pirate', hair: 'beehive', hairColor: 'pink' }
+  await page.evaluate((q) => window.__jop.show.skip(q), req)
+  await page.waitForFunction(() => window.__jop.show.ep.no === 7777 && window.__jop.show.state.kind === 'title' && window.__jop.show.bt < 1)
+  const info = await page.evaluate(() => {
+    const j = window.__jop
+    const cues = j.show.beats.flatMap((b) => b.cues)
+    const b = j.show.beats[1]
+    return { title: j.show.ep.title, speaks: j.show.speaks, voiced: j.show.voiced, lines: cues.length, dur: b.dur, talk: b.cues.map((c) => ({ at: c.at, dur: c.dur })) }
+  })
+  const secs = Math.min(info.dur, 10)
+  r = await record('request', `j.seek('talk')`, secs)
+  const buf = fs.readFileSync(`${OUT}/request.wav`)
+  const data = buf.indexOf('data') + 8
+  let loud = 0
+  for (let i = data; i + 882 <= buf.length; i += 882) {
+    let e = 0
+    for (let k = 0; k < 441; k++) e += (buf.readInt16LE(i + k * 2) / 32768) ** 2
+    if (10 * Math.log10(e / 441 + 1e-12) > -42) loud++
+  }
+  const expected = info.talk.filter((c) => c.at < secs).reduce((a, c) => a + Math.min(c.dur, secs - c.at), 0)
+  console.log(`\na requested episode ("${info.title}"): ${info.voiced} of ${info.lines} lines recorded; in its first ${secs.toFixed(1)}s the recordings run ${expected.toFixed(1)}s and a voice was heard for ${(loud * 0.02).toFixed(1)}s`)
+  ok(info.speaks && info.voiced === info.lines && info.lines >= 20, `a requested episode is not fully spoken (${info.voiced} of ${info.lines})`)
+  ok(loud * 0.02 > expected * 0.55 && expected > 3, `expected about ${expected.toFixed(1)}s of speech in a requested episode, heard ${(loud * 0.02).toFixed(1)}s`)
+}
+
 // 5. the theme, on the title card
 await page.evaluate(() => {
   const j = window.__jop

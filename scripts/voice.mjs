@@ -7,6 +7,7 @@
 //   node scripts/voice.mjs --limit 5000     stop after about that many characters
 //   node scripts/voice.mjs --episodes       only the lines of the episodes in assets-src/voice/episodes.json,
 //                                           an episode at a time, so each one is complete before the next begins
+//   node scripts/voice.mjs --match "hats go|something to hold"    only lines matching this
 //   node scripts/voice.mjs --force          record everything again
 //
 // Needs ELEVENLABS_API_KEY in the environment or in a .env file beside package.json. The key is read,
@@ -63,6 +64,11 @@ if (flag('episodes')) {
       }
     }
   }
+}
+
+if (opt('match')) {
+  const re = new RegExp(opt('match'), 'i')
+  lines = lines.filter((l) => re.test(l.text))
 }
 
 if (flag('dry')) {

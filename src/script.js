@@ -99,6 +99,12 @@ export const BODY_KIND = ['Just a happy little blob. He’s {kind}.', 'This one�
 export const BODY_ANY = ['There’s no wrong way to make a pebble. The river’s been guessing for years.']
 export const PROP = ['And he’ll need {prop}.', 'Give him {prop}. Careful, now. No fingers.']
 
+// For a haircut, a hat or a thing to hold whose own line has not been recorded yet: a line that would do
+// for any of them. Only ever said aloud; the captions-only show always has the particular line.
+export const HAIR_ANY = ['And his hair. I never tell a pebble how to wear it.']
+export const HAT_ANY = ['And a hat. Right on top. That’s where hats go.']
+export const PROP_ANY = ['And something to hold. Careful, now. No fingers.']
+
 export const HAT = {
   firefighter: 'A helmet. Red. So the fire knows who’s in charge.',
   chef: 'A tall white hat. The taller the hat, the better the soup.',

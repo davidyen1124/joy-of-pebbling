@@ -85,19 +85,34 @@ The voice was chosen by measurement, since the machine that built this cannot he
 every male voice on the account was measured for pitch, and "Brian" (98 Hz, ranging 80 to 163) sits
 closest to the real host (102 Hz, 75 to 160).
 
-**What is recorded so far: 66 lines, which is three episodes complete** (2218 Mason the Mail Carrier,
-4703 Pearl the Rock Star, 3262 Stoney the Ballerina), chosen from 5,000 as the three most different
-episodes that share the most lines. That took what was left of a free ElevenLabs month. The other 334
-lines need about 21,000 more characters.
+**What is recorded so far: 70 of 403 lines.** That is three episodes complete (2218 Mason the Mail
+Carrier, 4703 Pearl the Rock Star, 3262 Stoney the Ballerina, chosen from 5,000 as the three most
+different episodes that share the most lines), plus four lines that will do for any haircut, any hat,
+anything held, and any friend. It took all of a free ElevenLabs month. The other 333 lines need about
+21,000 more characters.
 
-- With the sound on, the programme goes round the episodes that are complete.
-- Any other episode (one asked for by Viewer Mail, or by number) is shown with captions only, and says
-  so: `CAPTIONS ONLY`. Cobb is not heard in an episode unless at least four fifths of it is recorded.
+Until they are recorded, Cobb says only what he has a recording of, and the episode is written round that
+(`writeEpisode` in `src/show.js`):
+
+- Where the line an episode would have used is not recorded, he says another from the same list that is
+  (there are several greetings, several ways of saying "now the eyes"; one of each is recorded).
+- For a haircut, a hat or a thing to hold with no line of its own yet, he says the one that does for any.
+- Nobody chooses the Pebble's name or the landscape, so those are taken from the three he can talk about.
+- What is left with nothing to say (a joke about being a pirate, say) is left out, and he paints that part
+  quietly, as he sometimes does anyway.
+
+So a request for any of the 20 jobs, 17 haircuts, 15 colours and 8 shapes is spoken from hello to
+goodbye: 25 to 32 lines, talking for about 70% of the running time, the same as a fully recorded episode.
+What it lacks, until the rest is recorded, is the jokes particular to that job and haircut. They are all
+there in the captions when the sound is off, which is the only time anything is shown that is not said.
+
+- With the sound on, Next goes round the three complete episodes.
 - With the sound off there is nothing to miss, so Next is simply another Pebble.
 
 ```sh
 npm run voice -- --dry          # the list and the character count; needs no key
 npm run voice -- --episodes     # the episodes in assets-src/voice/episodes.json, one at a time
+npm run voice -- --match "hats go|something to hold"   # only lines matching this
 npm run voice                   # everything that is missing, most-heard lines first
 ```
 
@@ -210,14 +225,33 @@ npm run dev -- --port 5191
 npm run build
 ```
 
+## Files a browser keeps
+
+The studio, the landscapes and the sounds live in `public/`, keep their names from one build to the next,
+and are served with leave to keep them for a day. So a returning visitor's browser can hold yesterday's
+copy of one beside today's code. That once left the live page on static for good: the code had learned
+about the bucket, the cached studio file had not. Now every such file is asked for as `file?v=stamp`,
+where the stamp is made from the contents of its folder (`vite.config.js`, `src/asset.js`); a studio file
+without something the code knows about is tolerated; and if the page cannot start it says NO SIGNAL in
+the middle of the screen with a way to try again, where before it said it under the controls.
+
 ## QA
 
 ```sh
 npm run dev -- --port 5191 &
-npm run qa                                           # everything below
-npm run qa:sound                                     # listens to the page (takes half a minute)
-BASE=https://joy-of-pebbling.vercel.app npm run qa   # the live site
+npm run qa                                           # layout, episodes, a returning visitor, and the rest below
+npm run qa:sound                                     # listens to the page and measures what it hears
+npm run qa:features                                  # every feature, used the way a person uses it, in real time
+BASE=https://joy-of-pebbling.vercel.app npm run qa   # any of them against the live site
 ```
+
+`scripts/qa-features.mjs` goes through the page as a visitor would, with real clicks, taps and keys, in
+real time, in a browser that keeps its cache and will not play sound until it is clicked, recording what
+comes out of the speakers: starting; Cobb speaking and the caption matching; painting; Pause by button,
+click and key; each speed, timed; sound off and on; Next; the Request sheet opened, closed, surprised,
+sent, and the requested episode heard and painted; Keep; every key; the credits and the next episode
+starting by itself; the window changing shape; a link to one episode; a second visit; a phone by touch;
+Safari's engine. One line of output per feature.
 
 `scripts/qa.mjs` drives the real page with Playwright:
 
@@ -235,6 +269,9 @@ BASE=https://joy-of-pebbling.vercel.app npm run qa   # the live site
   the address is left clean throughout.
 - **A browser that allows sound untouched**: the programme starts by itself, with sound, on an episode
   Cobb has recorded, no button shown, the address untouched.
+- **A returning visitor, and other misfortunes**: every file a browser may keep is asked for by a stamped
+  address; a studio file from before the bucket still runs; when the studio cannot be fetched the page
+  says so with a way to retry; clicks and keys while it is still loading break nothing.
 - **Twenty whole episodes, and every recorded one**, start to finish: each reaches its credits, has
   paint on at least 90% of the canvas, runs between 110 and 260 seconds, has no unfilled blank or
   "a astronaut" in any line, says nothing that is not on the recording list, and rolls on to another

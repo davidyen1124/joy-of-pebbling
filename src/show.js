@@ -17,17 +17,39 @@ const LOAD = 0.85 // seconds at the palette before each part
 const GAP = 0.28 // a breath between lines
 const BEAT_FOR = 1.95 // the brush is beaten for this long: 22 strikes, as measured
 
-/** an episode number alone decides everything, unless the viewer wrote in with a request */
-export function makeEpisode(no, req = {}) {
+/** can every band of this landscape be talked about with the recordings there are? */
+function plateSpoken(plate, has) {
+  return plate.bands.every((b) => (S.BAND[b.what] || S.BAND.sky).some((set) => set.every((t) => has(S.fill(t, { paint: PAINTS[b.paints[0]].name })))))
+}
+
+/**
+ * An episode number alone decides everything, unless the viewer wrote in with a request.
+ * voice: { has(text) } when Cobb is going to be heard. Then the two things nobody chose, his subject's
+ * name and the landscape, are taken from those he has recorded lines for, if the ones the number gave
+ * are not among them. (An episode recorded in full is untouched by this: it already is.)
+ */
+export function makeEpisode(no, req = {}, voice = null) {
   const r = rng(no * 2654435761)
+  const r2 = rng(no * 7919 + 101) // for second choices, so that first choices come out as they always did
   const pick = (list, id) => (id && byId(list, id)) || r.pick(list)
   const kind = pick(KINDS, req.kind)
   const color = pick(COLORS, req.color)
   const hair = pick(HAIRS, req.hair)
   const hairColor = pick(HAIR_COLORS, req.hairColor)
   const job = pick(JOBS, req.job)
-  const plate = pick(PLATES, req.plate)
-  const name = r.pick(NAMES)
+  let plate = pick(PLATES, req.plate)
+  let name = r.pick(NAMES)
+  if (voice) {
+    if (!req.plate && !plateSpoken(plate, voice.has)) {
+      const spoken = PLATES.filter((p) => plateSpoken(p, voice.has))
+      if (spoken.length) plate = r2.pick(spoken)
+    }
+    const named = (n) => S.OUTRO_NAME.some((t) => voice.has(S.fill(t, { name: n })))
+    if (!named(name)) {
+      const spoken = NAMES.filter(named)
+      if (spoken.length) name = r2.pick(spoken)
+    }
+  }
   return {
     no, kind, color, hair, hairColor, job, plate, name,
     title: `${name} the ${job.label.replace(/\b[a-z]/g, (c) => c.toUpperCase())}`,
@@ -36,17 +58,56 @@ export function makeEpisode(no, req = {}) {
   }
 }
 
-/** seconds: how long each line takes to say */
-export function writeEpisode(ep, seconds = guessSeconds) {
+/**
+ * seconds: how long each line takes to say.
+ * voice: { has(text) } when Cobb is going to be heard, and then he says only what he has a recording of.
+ *   Where the line the episode number chose is not recorded he says another from the same list that is;
+ *   failing that, for a haircut, a hat or a thing to hold, a line that would do for any of them; failing
+ *   that, nothing, and he paints that part quietly. Without `voice` (sound off: captions only) every
+ *   line is written, as chosen.
+ */
+export function writeEpisode(ep, seconds = guessSeconds, voice = null) {
   const r = rng(ep.no * 40503 + 17)
+  const r2 = rng(ep.no * 104729 + 7) // second choices only: the first run exactly as they always did
+  const has = voice ? voice.has : null
   const ctx = { job: ep.job.label, name: ep.name, kind: ep.kind.a, say: ep.color.say, prop: ep.job.prop }
   const say = (text, extra) => S.fill(text, { ...ctx, ...extra })
   const span = (lines) => lines.reduce((a, l) => a + seconds(l) + GAP, 0.15)
+  const spoken = (lines) => (has ? lines.filter(has) : lines)
+  // one line out of a list
+  const among = (list, fallback, extra) => {
+    const rec = list.map((t) => say(t, extra)).filter(has)
+    if (rec.length) return r2.pick(rec)
+    if (fallback) {
+      const any = fallback.map((t) => say(t, extra)).filter(has)
+      if (any.length) return r2.pick(any)
+    }
+    return null
+  }
+  const line = (list, fallback, extra) => {
+    const first = say(r.pick(list), extra)
+    return !has || has(first) ? first : among(list, fallback, extra) ?? first
+  }
+  // a line there is only one of
+  const only = (text, fallback) => {
+    const first = say(text)
+    return !has || has(first) ? first : among([], fallback) ?? first
+  }
+  // several lines that belong together: the chosen set if he can say all of it, else one he can, else
+  // the one he can say most of
+  const set = (sets, extra) => {
+    const first = r.pick(sets).map((t) => say(t, extra))
+    if (!has || first.every(has)) return first
+    const all = sets.map((x) => x.map((t) => say(t, extra)))
+    const whole = all.filter((x) => x.every(has))
+    if (whole.length) return r2.pick(whole)
+    return all.reduce((best, x) => (x.filter(has).length > best.filter(has).length ? x : best), first)
+  }
   const beats = []
-  const talk = (lines, shot = 'wide', extra = {}) => beats.push({ kind: 'talk', shot, lines: lines.map((l) => say(l)), ...extra })
+  const talk = (lines, shot = 'wide', extra = {}) => beats.push({ kind: 'talk', shot, lines: spoken(lines), ...extra })
   let shotN = 0
   const paint = (label, job, lines, o = {}) => {
-    const text = lines.map((l) => say(l, o.ctx))
+    const text = spoken(lines)
     job.dur = Math.max(job.dur, span(text) - LOAD)
     const n = shotN++
     let shots = o.shots
@@ -59,25 +120,25 @@ export function writeEpisode(ep, seconds = guessSeconds) {
   }
 
   beats.push({ kind: 'title', dur: 5 })
-  talk([r.pick(S.GREET), r.pick(S.GREET_JOB), r.pick(S.PRIMED[ep.plate.base])], 'wide', { lower: true })
+  talk([line(S.GREET), line(S.GREET_JOB), line(S.PRIMED[ep.plate.base])], 'wide', { lower: true })
 
   // the landscape, top to bottom
   const bands = ep.plate.bands
   bands.forEach((b, i) => {
-    const lines = r.pick(S.BAND[b.what] || S.BAND.sky)
+    const lines = set(S.BAND[b.what] || S.BAND.sky, { paint: PAINTS[b.paints[0]].name })
     const last = i === bands.length - 1
-    const ctxB = { paint: PAINTS[b.paints[0]].name }
     // block it in soft with the big brush, then go back in for the detail with the band's own tool.
     // He talks about the knife while he is holding the knife.
     const early = b.tool === 'big' ? [lines[0]] : []
     paint(b.what, { plate: 'blur', band: [Math.min(b.y[0] + 0.07, b.y[1] - 0.05), b.y[1]], style: i === 0 ? 'criss' : 'rows', size: 124, dur: early.length ? 2.6 : 2.0, tool: 'big', seed: ep.no + i },
-      early, { paint: b.paints[0], ctx: ctxB, shots: i === 0 ? [[0, 'palette'], [LOAD, 'canvas']] : [[0, 'canvas']] })
+      early, { paint: b.paints[0], shots: i === 0 ? [[0, 'palette'], [LOAD, 'canvas']] : [[0, 'canvas']] })
     paint(b.what, { plate: 'sharp', band: b.y, style: b.style, size: b.style === 'knife' ? 150 : b.style === 'criss' ? 104 : b.style === 'dab' ? 76 : 66, dur: 4.2, tool: b.tool, final: last, seed: ep.no + i + 50 },
-      early.length ? lines.slice(1) : lines, { paint: b.paints[1] || b.paints[0], ctx: ctxB })
+      early.length ? lines.slice(1) : lines, { paint: b.paints[1] || b.paints[0] })
   })
 
-  beats.push({ kind: 'beat', lines: r.pick(S.WASH).map((l) => say(l)) })
-  talk(r.pick(S.ENTER), 'host')
+  // the wash needs all three of its lines, so they stay together, heard or not
+  beats.push({ kind: 'beat', lines: set(S.WASH) })
+  talk(set(S.ENTER), 'host')
 
   // the Pebble, part by part
   const side = r.chance(0.5) ? -1 : 1
@@ -92,42 +153,42 @@ export function writeEpisode(ep, seconds = guessSeconds) {
     const job = { draw: st.draw, style: st.style, size: st.size, dur: st.dur, tool: st.tool, seed: ep.no + beats.length }
     let lines
     let paintId = ep.color.paint
-    if (st.id === 'body') lines = [r.pick(S.BODY_COLOR), r.pick(r.chance(0.8) ? S.BODY_KIND : S.BODY_ANY)]
-    else if (st.id === 'outfit') lines = [r.pick(S.STEP.outfit), r.pick(ep.job.say)]
+    if (st.id === 'body') lines = [line(S.BODY_COLOR), r.chance(0.8) ? line(S.BODY_KIND, S.BODY_ANY) : line(S.BODY_ANY)]
+    else if (st.id === 'outfit') lines = [line(S.STEP.outfit), line(ep.job.say)]
     else if (st.id === 'hair') {
-      lines = [r.pick(ep.hair.say)]
+      lines = [line(ep.hair.say, ep.hair.id === 'bald' ? null : S.HAIR_ANY)]
       paintId = ep.hairColor.paint
     } else if (st.id === 'hat') {
-      lines = [S.HAT[ep.job.id]]
+      lines = [only(S.HAT[ep.job.id], S.HAT_ANY)]
       paintId = 'red'
     } else if (st.id === 'face') {
-      lines = [r.pick(S.STEP.face)]
-      if (S.FACE_EXTRA[ep.job.id]) lines.push(S.FACE_EXTRA[ep.job.id])
+      lines = [line(S.STEP.face)]
+      if (S.FACE_EXTRA[ep.job.id]) lines.push(say(S.FACE_EXTRA[ep.job.id]))
       paintId = 'black'
     } else if (st.id === 'prop') {
-      lines = [r.pick(S.PROP)]
+      lines = [line(S.PROP, S.PROP_ANY)]
       paintId = 'vandyke'
     } else if (st.id === 'shadow') {
-      lines = [r.pick(S.STEP.shadow)]
+      lines = [line(S.STEP.shadow)]
       paintId = 'black'
-    } else lines = [r.pick(S.STEP[st.id] || S.STEP.arms)]
+    } else lines = [line(S.STEP[st.id] || S.STEP.arms)]
     // a Pebble with no outfit still has to be told what it does for a living
-    if (st.id === 'arms' && !built.steps.some((s) => s.id === 'outfit')) lines.push(r.pick(ep.job.say))
+    if (st.id === 'arms' && !built.steps.some((x) => x.id === 'outfit')) lines.push(line(ep.job.say))
     paint(st.id, job, lines, { paint: paintId, shots: st.id === 'body' ? [[0, 'palette'], [LOAD, 'canvas']] : undefined })
     if (st.id === 'shade' && accident) {
       const blot = [[[fx - 14, ground - 40], [fx + 10, ground - 52], [fx + 16, ground - 30], [fx - 8, ground - 22], [fx + 4, ground - 40], [fx - 12, ground - 34]]]
-      const lines2 = r.pick(S.ACCIDENT)
-      paint('accident', { solid: friend.col.dark, paths: blot, style: 'path', size: 30, dur: 1.2, tool: 'big', seed: 9 }, lines2, { paint: friend.col.paint, shots: [[0, 'canvas'], [LOAD + seconds(lines2[0]) + GAP, 'host']] })
+      const lines2 = spoken(set(S.ACCIDENT))
+      paint('accident', { solid: friend.col.dark, paths: blot, style: 'path', size: 30, dur: 1.2, tool: 'big', seed: 9 }, lines2, { paint: friend.col.paint, shots: [[0, 'canvas'], [LOAD + (lines2.length ? seconds(lines2[0]) : 1) + GAP, 'host']] })
     }
   }
   if (friend) {
-    paint('friend', { draw: friend.draw, style: 'dab', size: 34, dur: 4.0, tool: 'round', seed: ep.no + 77 }, r.pick(accident ? S.FRIEND_AFTER_ACCIDENT : S.FRIEND), { paint: friend.col.paint })
+    paint('friend', { draw: friend.draw, style: 'dab', size: 34, dur: 4.0, tool: 'round', seed: ep.no + 77 }, set(accident ? S.FRIEND_AFTER_ACCIDENT : S.FRIEND), { paint: friend.col.paint })
   }
   // sign in whichever bottom corner is empty
   const sx = (friend ? fx > 512 : cx > 560) ? 44 : 824
-  paint('signature', { solid: '#c2241c', paths: signature(sx, 676, 1.8), style: 'path', size: 8.5, dur: 3.0, tool: 'round', brush: 'round', alpha: 1 }, [r.pick(S.SIGN)], { paint: 'red', shots: [[0, 'canvas']] })
+  paint('signature', { solid: '#c2241c', paths: signature(sx, 676, 1.8), style: 'path', size: 8.5, dur: 3.0, tool: 'round', brush: 'round', alpha: 1 }, [line(S.SIGN)], { paint: 'red', shots: [[0, 'canvas']] })
 
-  beats.push({ kind: 'outro', lines: [r.pick(S.OUTRO_NAME), r.pick(S.OUTRO_BYE)].map((l) => say(l)) })
+  beats.push({ kind: 'outro', lines: spoken([line(S.OUTRO_NAME), line(S.OUTRO_BYE)]) })
   beats.push({ kind: 'credits', dur: S.CREDITS.length * 2.6 + 0.6 })
 
   // lay the words out in time
@@ -191,24 +252,33 @@ export class Show {
     return this.plates.get(id)
   }
 
+  /** what Cobb has recordings of, if he is going to be heard and has any; otherwise nothing to go by */
+  voice() {
+    const a = this.audio
+    if (!a.wanted || !Object.keys(a.voiceDur).length) return null
+    return { has: (text) => a.durationOf(lineId(text)) !== undefined }
+  }
+
   async play(no, req) {
-    const ep = makeEpisode(no, req)
     this.req = req || {}
     this.loading = no
     this.glitch = 1
     this.audio.hush()
     this.audio.static()
-    const [img] = await Promise.all([this.loadPlate(ep.plate.id), this.audio.ready])
+    await this.audio.ready
+    const voice = this.voice()
+    const ep = makeEpisode(no, req, voice)
+    const img = await this.loadPlate(ep.plate.id)
     if (this.loading !== no) return
     this.ep = ep
     this.painter.setPlate(img)
     this.painter.reset(ep.plate.base)
-    this.beats = writeEpisode(ep, (text) => this.audio.durationOf(lineId(text)) ?? guessSeconds(text))
+    this.beats = writeEpisode(ep, (text) => this.audio.durationOf(lineId(text)) ?? guessSeconds(text), voice)
     this.total = this.beats.reduce((a, b) => a + b.dur, 0)
     const cues = this.beats.flatMap((b) => b.cues)
     this.voiced = cues.filter((c) => this.audio.durationOf(c.id) !== undefined).length
     // an episode with only a line recorded here and there is better read than half heard
-    this.speaks = this.voiced >= cues.length * 0.8
+    this.speaks = cues.length > 0 && this.voiced >= cues.length * 0.8
     this.noted = false
     if (this.speaks) this.audio.preload(cues.map((c) => c.id))
     this.bi = -1
@@ -223,7 +293,7 @@ export class Show {
     this.stage.tint.set('#e4d5ad')
     this.next()
     // warm the next landscape while this one plays
-    this.loadPlate(makeEpisode(no + 1).plate.id).catch(() => {})
+    this.loadPlate(makeEpisode(this.nextNo(no), {}, voice).plate.id).catch(() => {})
   }
 
   next() {

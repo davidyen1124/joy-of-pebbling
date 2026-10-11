@@ -12,7 +12,8 @@
     "qa": "node scripts/qa.mjs",
     "voice": "node scripts/voice.mjs",
     "sfx": "node scripts/sfx.mjs",
-    "qa:sound": "node scripts/qa-sound.mjs"
+    "qa:sound": "node scripts/qa-sound.mjs",
+    "qa:features": "node scripts/qa-features.mjs"
   },
   "dependencies": {
     "@fontsource/caprasimo": "^5.2.5",

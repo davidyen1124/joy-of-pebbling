@@ -47,6 +47,7 @@ export function allLines() {
   each(S.ENTER, (t) => add(t, {}, 30))
   each(Object.values(S.STEP), (t) => add(t, {}, 40))
   each(S.BODY_ANY, (t) => add(t, {}, 30))
+  each([S.HAIR_ANY, S.HAT_ANY, S.PROP_ANY], (t) => add(t, {}, 60))
   each(S.ACCIDENT, (t) => add(t, {}, 15))
   each(S.FRIEND, (t) => add(t, {}, 15))
   each(S.FRIEND_AFTER_ACCIDENT, (t) => add(t, {}, 15))

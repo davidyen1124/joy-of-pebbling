@@ -329,6 +329,13 @@ async function layout(browser, [name, w, h, dpr, touch]) {
   const sp = await page.evaluate(() => window.__jop.show.ep.spec)
   ok(sp.kind === 'tall' && sp.hair === 'beehive' && sp.hairColor === 'pink' && sp.color === 'sap', name, `the request was not honoured: ${JSON.stringify(sp)}`)
   ok(!page.url().includes('?'), name, `the address is not left clean after a request: ${page.url()}`)
+  // the sound is on: Cobb must have something recorded to say in a requested episode, all the way through
+  const rq = await page.evaluate(() => {
+    const j = window.__jop
+    const cues = j.show.beats.flatMap((b) => b.cues)
+    return { speaks: j.show.speaks, voiced: j.show.voiced, lines: cues.length, said: cues.reduce((t, c) => t + c.dur, 0), total: j.show.total, on: j.audio.on }
+  })
+  ok(rq.on && rq.speaks && rq.voiced === rq.lines && rq.lines >= 20 && rq.said > rq.total * 0.5, name, `a requested episode is not spoken: ${JSON.stringify(rq)}`)
   await page.evaluate(() => {
     window.__jop.show.setSpeed(8)
     window.__jop.seek('outro')

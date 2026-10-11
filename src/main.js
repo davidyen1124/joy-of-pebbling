@@ -49,21 +49,12 @@ const play = (no, req = {}) => {
 }
 
 // ── sound ───────────────────────────────────────────────────────────────────
-const store = {
-  get: (k) => {
-    try {
-      return localStorage.getItem(k)
-    } catch {
-      return null
-    }
-  },
-  set: (k, v) => {
-    try {
-      localStorage.setItem(k, v)
-    } catch {}
-  },
-}
-audio.wanted = store.get('jop-sound') !== 'off' && !q.has('mute')
+// Every visit starts wanting sound. (It used to remember "off" from one visit to the next, which meant a
+// silent programme with no word of explanation the next time.)
+try {
+  localStorage.removeItem('jop-sound')
+} catch {}
+audio.wanted = !q.has('mute')
 const showSound = () => {
   $('bSound').setAttribute('aria-pressed', String(audio.on))
   $('bSound').firstElementChild.innerHTML = icon(audio.on ? 'sound' : 'mute')
@@ -72,7 +63,6 @@ const showSound = () => {
 const setSound = (on) => {
   audio.wanted = on
   audio.enable(on)
-  store.set('jop-sound', on ? 'on' : 'off')
   if (on && show.speaks) audio.preload(show.beats.flatMap((b) => b.cues).map((c) => c.id))
   showSound()
 }

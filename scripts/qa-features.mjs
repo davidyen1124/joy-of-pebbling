@@ -12,6 +12,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 const BASE = process.env.BASE || 'http://127.0.0.1:5191'
+// the page's own address: "/" on the dev server, "/<repo>/" on GitHub Pages
+const HOME = new URL(`${BASE}/`).pathname
 const OUT = 'qa/features'
 fs.mkdirSync(OUT, { recursive: true })
 const GL = ['--use-angle=metal', '--enable-webgl', '--ignore-gpu-blocklist']
@@ -155,7 +157,7 @@ await page.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 60000 })
 await sleep(800)
 let s = await state(page)
 feature('It opens on the title card behind a play button, and nothing runs yet', s.held && s.play && s.titlecard && s.clock === 0 && !s.bar, `episode ${s.ep} "${s.title}", clock ${s.clock}`)
-feature('The address is left alone', s.url === '/', s.url)
+feature('The address is left alone', s.url === HOME, s.url)
 feature('It opens on an episode Cobb has recorded in full', s.featured.includes(s.ep) && s.speaks && s.voiced === s.lines, `${s.voiced} of ${s.lines} lines recorded`)
 
 await startTape(page)
@@ -249,7 +251,7 @@ await sleep(600)
 b = await state(page)
 feature('Next goes to another episode', b.ep !== a.ep && b.kind === 'title' && b.titlecard, `${a.ep} "${a.title}" to ${b.ep} "${b.title}"`)
 feature('…one Cobb has recorded, while the sound is on', b.featured.includes(b.ep) && b.speaks && b.voiced === b.lines, `${b.voiced} of ${b.lines} lines`)
-feature('…and the address stays clean', b.url === '/', b.url)
+feature('…and the address stays clean', b.url === HOME, b.url)
 
 console.log('\nRequest (Viewer Mail)')
 a = await state(page)
@@ -426,7 +428,7 @@ await sleep(700)
 await press(page, '#bNext')
 await page.waitForFunction(() => window.__jop.show.ep.no !== 427, null, { timeout: 8000 }).catch(() => {})
 s = await state(page)
-feature('…and the address is cleared once it moves on', s.ep !== 427 && s.url === '/', s.url)
+feature('…and the address is cleared once it moves on', s.ep !== 427 && s.url === HOME, s.url)
 
 console.log('\nComing back (same browser, its cache intact)')
 const t0 = Date.now()

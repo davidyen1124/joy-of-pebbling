@@ -3,10 +3,11 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// Files in public/ keep their names from one build to the next, and browsers are told they may keep them
-// for a day. So a returning visitor can have yesterday's copy of the studio beside today's code, which
-// once stopped the page dead. Each folder gets a stamp made from its contents, and the code asks for
-// "file?v=stamp" (src/asset.js): change a file and its address changes with it.
+// Files in public/ keep their names from one build to the next, and a browser may keep its copy of one
+// for a while (how long is the host's decision: GitHub Pages sets the cache headers, the site cannot). So
+// a returning visitor can have an old copy of the studio beside today's code, which once stopped the page
+// dead. Each folder gets a stamp made from its contents, and the code asks for "file?v=stamp"
+// (src/asset.js): change a file and its address changes with it.
 function stamp(dir) {
   const h = createHash('sha1')
   const walk = (d) => {
@@ -24,6 +25,9 @@ function stamp(dir) {
 }
 
 export default defineConfig(() => ({
+  // Relative base so the same build works at a domain root or under a sub-path
+  // such as GitHub Pages' https://<user>.github.io/<repo>/.
+  base: './',
   define: {
     __STAMP__: JSON.stringify(Object.fromEntries(['models', 'plates', 'sfx', 'voice'].map((d) => [d, stamp(`public/${d}`)]))),
   },

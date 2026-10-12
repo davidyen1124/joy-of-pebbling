@@ -5,7 +5,7 @@ dist
 logs
 qa/*.png
 qa/shots
-blender/__pycache__
+assets-src/blender/__pycache__
 .env
 .env.*
 qa/audio

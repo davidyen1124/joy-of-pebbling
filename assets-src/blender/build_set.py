@@ -1,7 +1,9 @@
 # Builds everything in the studio (the host, the easel, the palette, the tools) and writes one GLB plus a
 # small JSON of anchor points the page needs.
 #
-#   Blender --background --factory-startup --python blender/build_set.py -- public/models/set.glb [hero.png]
+#   Blender --background --factory-startup --python assets-src/blender/build_set.py -- public/models/set.glb [hero.png]
+#
+# Run it from the top of the repository: the two paths after "--" are taken from where it is run.
 #
 # All modelling here is in the page's coordinates (Y up, +Z towards the viewer, one unit = one Pebble tall).
 # The conversion to Blender's Z-up happens once, in Geo.obj().

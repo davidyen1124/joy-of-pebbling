@@ -11,6 +11,8 @@ import { chromium, webkit } from 'playwright'
 import fs from 'node:fs'
 
 const BASE = process.env.BASE || 'http://127.0.0.1:5191'
+// the page's own address: "/" on the dev server, "/<repo>/" on GitHub Pages
+const HOME = new URL(`${BASE}/`).pathname
 const OUT = 'qa/shots'
 fs.mkdirSync(OUT, { recursive: true })
 
@@ -371,7 +373,7 @@ async function direct() {
     ok(!s.held && !s.play, name, 'it waits behind a play button although sound is allowed')
     ok(s.on && s.state === 'running', name, `it started without its sound (${JSON.stringify(s)})`)
     ok(s.clock > 0.5, name, 'the programme is not running')
-    ok(s.url === '/', name, `the address has been written on: ${s.url}`)
+    ok(s.url === HOME, name, `the address has been written on: ${s.url}`)
     if (s.featured.length) ok(s.featured[0] === s.ep && s.speaks, name, `it does not open with an episode Cobb has recorded (episode ${s.ep})`)
     ok(errors.length === 0, name, `errors: ${errors.join(' | ')}`)
     console.log(`  ${name}: playing ${s.kind} at ${s.clock.toFixed(1)}s, sound ${s.on ? 'on' : 'off'}, episode ${s.ep}, address ${s.url}`)
@@ -408,7 +410,7 @@ async function returning(browser) {
   // 1. Anything a browser may keep must be asked for by an address that changes when the file does.
   {
     const { ctx, page, errors, asked } = await visit('stamped')
-    const kept = asked.filter((u) => /^\/(models|plates|sfx|voice)\//.test(u))
+    const kept = asked.filter((u) => u.startsWith(HOME) && /^(models|plates|sfx|voice)\//.test(u.slice(HOME.length)))
     const bare = kept.filter((u) => !/\?v=[0-9a-f]{6,}/.test(u))
     console.log(`  ${kept.length} files a browser may keep were asked for; ${bare.length} without a stamp in the address`)
     ok(kept.length >= 10, 'returning', `expected the page to fetch its studio, pictures and sounds; it asked for ${kept.length}`)

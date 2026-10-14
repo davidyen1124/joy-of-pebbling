@@ -77,7 +77,7 @@ Cobb's voice is recorded ahead of time, one line at a time, and a free ElevenLab
 He has pirate jokes. He has not recorded them. A request is still spoken from hello to goodbye, but with the lines he has, so the hat gets "And a hat. Right on top. That's where hats go." Turn the sound off and the jokes are all there in the captions ("A pirate. He sank straight away, but he had a wonderful time."), which is the only time anything is shown that is not said.
 
 **Why does Next keep giving me the same three Pebbles?**
-Same reason. Each visit opens on one of the three episodes he has recorded in full, picked at random and never the one your browser opened on last time. With the sound on, Next goes round those three. With the sound off there is nothing to miss, so Next is simply another Pebble.
+Same reason. Each visit opens on one of the three episodes he has recorded in full, picked at random. With the sound on, Next goes round those three. With the sound off there is nothing to miss, so Next is simply another Pebble.
 
 **He stopped talking when I fast-forwarded.**
 Nobody talks at 2×. He keeps painting, and the captions keep up.

@@ -31,7 +31,25 @@ const KEYS = { k: 'kind', c: 'color', h: 'hair', hc: 'hairColor', j: 'job', bg: 
 const linked = {}
 for (const [short, key] of Object.entries(KEYS)) if (q.get(short)) linked[key] = q.get(short)
 const anyNo = () => 1 + Math.floor(Math.random() * 9998)
-let firstNo = Math.max(0, parseInt(q.get('ep'), 10) || 0) // 0: let the first voiced episode open the programme
+let firstNo = Math.max(0, parseInt(q.get('ep'), 10) || 0) // 0: let a voiced episode open the programme
+// The episode a visit opens on, when no link names one: one Cobb has recorded, picked at random but never
+// the one this browser opened on last time, so that coming back is not a rerun.
+const LAST = 'jop-last'
+const opener = () => {
+  const f = audio.featured
+  if (!f.length) return anyNo()
+  let last = 0
+  try {
+    last = parseInt(localStorage.getItem(LAST), 10) || 0
+  } catch {}
+  const pool = f.length > 1 ? f.filter((n) => n !== last) : f
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+const remember = (no) => {
+  try {
+    localStorage.setItem(LAST, String(no))
+  } catch {}
+}
 const tidy = () => {
   if (location.search) history.replaceState(null, '', location.pathname)
 }
@@ -198,7 +216,8 @@ async function boot() {
   await stage.load(asset('/models/set.glb'), layout)
   if (q.get('speed')) setSpeed(Math.max(1, Math.min(8, +q.get('speed') || 1)))
   await audio.ready
-  if (!firstNo) firstNo = audio.featured[0] ?? anyNo()
+  if (!firstNo) firstNo = opener()
+  remember(firstNo)
   let free = false
   if (audio.wanted) {
     audio.prepare() // everything is fetched and decoded now, so that a click is answered at once

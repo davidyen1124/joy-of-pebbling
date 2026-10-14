@@ -159,6 +159,15 @@ let s = await state(page)
 feature('It opens on the title card behind a play button, and nothing runs yet', s.held && s.play && s.titlecard && s.clock === 0 && !s.bar, `episode ${s.ep} "${s.title}", clock ${s.clock}`)
 feature('The address is left alone', s.url === HOME, s.url)
 feature('It opens on an episode Cobb has recorded in full', s.featured.includes(s.ep) && s.speaks && s.voiced === s.lines, `${s.voiced} of ${s.lines} lines recorded`)
+// coming back is not a rerun: each visit opens on a recorded episode, never the one the visit before opened on
+const visits = [s.ep]
+for (let i = 0; i < 4; i++) {
+  await page.reload({ waitUntil: 'networkidle', timeout: 60000 })
+  await page.waitForFunction(() => window.__jop?.show.ep && window.__jop.show.held, null, { timeout: 30000 })
+  visits.push((await state(page)).ep)
+}
+s = await state(page)
+feature('Coming back opens on a different recorded episode each time', visits.every((no, i) => s.featured.includes(no) && (i === 0 || no !== visits[i - 1])), visits.join(', then '))
 
 await startTape(page)
 const tClick = Date.now()

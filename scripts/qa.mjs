@@ -374,7 +374,7 @@ async function direct() {
     ok(s.on && s.state === 'running', name, `it started without its sound (${JSON.stringify(s)})`)
     ok(s.clock > 0.5, name, 'the programme is not running')
     ok(s.url === HOME, name, `the address has been written on: ${s.url}`)
-    if (s.featured.length) ok(s.featured[0] === s.ep && s.speaks, name, `it does not open with an episode Cobb has recorded (episode ${s.ep})`)
+    if (s.featured.length) ok(s.featured.includes(s.ep) && s.speaks, name, `it does not open with an episode Cobb has recorded (episode ${s.ep})`)
     ok(errors.length === 0, name, `errors: ${errors.join(' | ')}`)
     console.log(`  ${name}: playing ${s.kind} at ${s.clock.toFixed(1)}s, sound ${s.on ? 'on' : 'off'}, episode ${s.ep}, address ${s.url}`)
     await ctx.close()
